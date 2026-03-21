@@ -1,0 +1,47 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Dependabot configuration
+#
+# Keeps Go modules and GitHub Actions up to date automatically.
+# PRs are opened weekly and target the main branch.
+# ──────────────────────────────────────────────────────────────────────────────
+
+version: 2
+
+updates:
+  # Go module dependency updates
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "Europe/London"
+    open-pull-requests-limit: 5
+    reviewers:
+      - iamkanishka
+    labels:
+      - dependencies
+      - go
+    commit-message:
+      prefix: "chore(deps)"
+    ignore:
+      # Ignore patch updates for stdlib-only modules (they track Go versions)
+      - dependency-name: "golang.org/x/sys"
+        update-types: ["version-update:semver-patch"]
+
+  # GitHub Actions updates
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "Europe/London"
+    open-pull-requests-limit: 5
+    reviewers:
+      - iamkanishka
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: "chore(ci)"
