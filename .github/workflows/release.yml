@@ -1,0 +1,283 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# tink-client-go — Release & pkg.go.dev publication pipeline
+#
+# How pkg.go.dev works:
+#   pkg.go.dev indexes Go modules automatically when a version tag is pushed
+#   to a public GitHub repository. There is NO manual publish step — the proxy
+#   at proxy.golang.org fetches the module and pkg.go.dev indexes it within
+#   a few minutes.
+#
+# What this workflow does:
+#   1. On every push/PR  → lint + vet + test (with race detector)
+#   2. On tag push (v*)  → full CI + create a GitHub Release
+#                          → trigger proxy.golang.org to fetch the new version
+#                          → verify the module appears on pkg.go.dev
+#
+# To publish a new version:
+#   git tag v1.1.0
+#   git push origin v1.1.0
+#
+# Required repository secrets:
+#   GOPROXY_TOKEN  — optional; only needed if your repo is private
+#                    (public repos are fetched by the proxy automatically)
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: CI / Release
+
+on:
+  push:
+    branches: [main, master]
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"        # e.g. v1.0.0
+      - "v[0-9]+.[0-9]+.[0-9]+-*"      # e.g. v1.0.0-rc.1
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: write   # needed to create GitHub Releases
+  id-token: write   # needed for OIDC (future: pkg.go.dev OIDC attestation)
+
+env:
+  GO_VERSION: "1.22"
+  MODULE_PATH: "github.com/iamkanishka/tink-client-go"
+
+# ── Jobs ──────────────────────────────────────────────────────────────────────
+
+jobs:
+  # ── 1. Test ─────────────────────────────────────────────────────────────────
+  test:
+    name: Test (Go ${{ matrix.go }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["1.22", "1.23"]                      # test on current + latest
+        os: [ubuntu-latest, macos-latest]          # test on Linux and macOS
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go ${{ matrix.go }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify module graph
+        run: go mod verify
+
+      # go vet catches common correctness issues before tests run
+      - name: go vet
+        run: go vet ./...
+
+      # staticcheck is the gold-standard Go static analyser
+      - name: staticcheck
+        uses: dominikh/staticcheck-action@v1
+        with:
+          version: latest
+          install-go: false
+          cache-key: staticcheck-${{ matrix.go }}-${{ matrix.os }}
+
+      # Run tests with the race detector on all packages
+      - name: Test (with race detector)
+        run: go test -race -count=1 -timeout=2m ./...
+
+      # Generate a coverage report on Linux/Go 1.22 only (avoid duplicate uploads)
+      - name: Test (with coverage)
+        if: matrix.os == 'ubuntu-latest' && matrix.go == '1.22'
+        run: |
+          go test -race -count=1 -timeout=2m \
+            -coverprofile=coverage.out \
+            -covermode=atomic \
+            ./...
+          go tool cover -func=coverage.out | tail -1
+
+      - name: Upload coverage report
+        if: matrix.os == 'ubuntu-latest' && matrix.go == '1.22'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.out
+          retention-days: 7
+
+  # ── 2. Lint ──────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: >-
+            --timeout=5m
+            --enable=govet,errcheck,staticcheck,unused,gosimple,ineffassign
+            --enable=gofmt,goimports,revive,gocritic
+            --exclude-use-default=false
+
+  # ── 3. Build example (validates the public API compiles cleanly) ─────────────
+  build-example:
+    name: Build example
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Build quickstart example
+        run: go build ./examples/quickstart/...
+
+      - name: Build all packages
+        run: go build ./...
+
+  # ── 4. Release (only on version tags) ────────────────────────────────────────
+  release:
+    name: Release
+    needs: [test, lint, build-example]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout (full history for changelog extraction)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # Extract the version tag (e.g. "v1.0.0")
+      - name: Set VERSION
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_ENV"
+
+      # Validate the tag matches a line in CHANGELOG.md to enforce documentation
+      - name: Validate CHANGELOG entry
+        run: |
+          VERSION_STRIPPED="${VERSION#v}"
+          if ! grep -q "## \[${VERSION_STRIPPED}\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md is missing an entry for ${VERSION}."
+            echo "::error::Add a '## [${VERSION_STRIPPED}] — YYYY-MM-DD' section before tagging."
+            exit 1
+          fi
+          echo "✓ CHANGELOG.md contains an entry for ${VERSION}"
+
+      # Extract the release notes for this version from CHANGELOG.md
+      # (everything between the version header and the next version header)
+      - name: Extract release notes
+        run: |
+          VERSION_STRIPPED="${VERSION#v}"
+          awk "/^## \[${VERSION_STRIPPED}\]/,/^## \[/{if (/^## \[/ && !/^## \[${VERSION_STRIPPED}\]/) exit; print}" \
+            CHANGELOG.md | tail -n +2 > release-notes.md
+          echo "Release notes for ${VERSION}:"
+          cat release-notes.md
+
+      # Final test run on the exact code being released
+      - name: Final test run
+        run: go test -race -count=1 -timeout=2m ./...
+
+      # Ensure go.sum is tidy (no extraneous dependencies)
+      - name: Verify go.sum is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.sum || {
+            echo "::error::go.sum is not tidy. Run 'go mod tidy' and commit the result."
+            exit 1
+          }
+
+      # Create the GitHub Release. The tag already exists (pushed by the developer).
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "${{ env.VERSION }}"
+          body_path: release-notes.md
+          draft: false
+          prerelease: ${{ contains(env.VERSION, '-') }}  # rc/beta/alpha tags are pre-releases
+          generate_release_notes: false                   # we use CHANGELOG.md instead
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── pkg.go.dev publication ──────────────────────────────────────────────
+      #
+      # pkg.go.dev discovers new module versions by querying the Go module proxy
+      # (proxy.golang.org). We trigger this explicitly by requesting the module
+      # at the new version, which causes the proxy to fetch + cache it and
+      # pkg.go.dev to index it (typically within 5–30 minutes).
+      #
+      # This works for PUBLIC repositories. For private repos you need a
+      # GOPROXY setup with authentication.
+      - name: Notify Go module proxy (trigger pkg.go.dev indexing)
+        run: |
+          MODULE="${{ env.MODULE_PATH }}"
+          VERSION="${{ env.VERSION }}"
+          echo "Requesting ${MODULE}@${VERSION} from the Go module proxy..."
+
+          # Fetch the module info — this causes proxy.golang.org to cache it
+          curl --silent --fail --show-error --retry 3 --retry-delay 5 \
+            "https://proxy.golang.org/${MODULE}/@v/${VERSION}.info" \
+            | jq . || echo "Note: proxy may need a few minutes to fetch the new tag."
+
+          # Fetch the module zip — ensures the full source is cached
+          curl --silent --head --fail --retry 3 --retry-delay 5 \
+            "https://proxy.golang.org/${MODULE}/@v/${VERSION}.zip" \
+            || echo "Note: zip endpoint may take a few minutes to become available."
+
+          echo "✓ Proxy notified. pkg.go.dev will index ${MODULE}@${VERSION} within ~30 minutes."
+          echo "  View at: https://pkg.go.dev/${MODULE}@${VERSION}"
+
+      # Verify the module is accessible on the proxy (best-effort, non-fatal)
+      - name: Verify module on proxy
+        continue-on-error: true
+        run: |
+          MODULE="${{ env.MODULE_PATH }}"
+          VERSION="${{ env.VERSION }}"
+          sleep 30  # give the proxy a moment to process
+          STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" \
+            "https://pkg.go.dev/${MODULE}@${VERSION}")
+          if [ "$STATUS" = "200" ]; then
+            echo "✓ Module is live at https://pkg.go.dev/${MODULE}@${VERSION}"
+          else
+            echo "ℹ Module not yet indexed (HTTP ${STATUS}) — check pkg.go.dev in a few minutes."
+          fi
+
+      # Post a summary to the GitHub Actions run summary
+      - name: Write job summary
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## 🚀 Released ${{ env.VERSION }}
+
+          | Item | Value |
+          |---|---|
+          | Module | \`${{ env.MODULE_PATH }}\` |
+          | Version | \`${{ env.VERSION }}\` |
+          | pkg.go.dev | [View documentation](https://pkg.go.dev/${{ env.MODULE_PATH }}@${{ env.VERSION }}) |
+          | GitHub Release | [${{ env.VERSION }}](https://github.com/${{ github.repository }}/releases/tag/${{ env.VERSION }}) |
+
+          ### Install
+
+          \`\`\`bash
+          go get ${{ env.MODULE_PATH }}@${{ env.VERSION }}
+          \`\`\`
+
+          > pkg.go.dev indexing takes approximately 5–30 minutes after the proxy fetches the module.
+          EOF
