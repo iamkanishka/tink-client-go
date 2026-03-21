@@ -1,0 +1,179 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# tink-client-go — Continuous Integration
+#
+# Runs on every push to any branch and on every pull request.
+# Separated from the release workflow so CI feedback is fast and focused.
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - "dependabot/**"
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true   # cancel in-flight runs when a new commit is pushed
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.22"
+
+jobs:
+  # ── Lint ─────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # Fail if any file is not properly formatted
+      - name: gofmt check
+        run: |
+          UNFORMATTED=$(gofmt -l .)
+          if [ -n "$UNFORMATTED" ]; then
+            echo "::error::The following files need formatting (run 'gofmt -w .'):"
+            echo "$UNFORMATTED"
+            exit 1
+          fi
+          echo "✓ All files are properly formatted"
+
+      # go vet catches correctness issues (misuse of Printf, suspicious composite literals, etc.)
+      - name: go vet
+        run: go vet ./...
+
+      # go mod tidy check — ensures go.sum is up to date
+      - name: go mod tidy check
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum || {
+            echo "::error::go.mod or go.sum is out of date. Run 'go mod tidy' and commit."
+            exit 1
+          }
+
+      # golangci-lint runs multiple linters in parallel
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: >-
+            --timeout=5m
+            --enable=govet,errcheck,staticcheck,unused
+            --enable=gosimple,ineffassign,gofmt,goimports
+
+  # ── Test ─────────────────────────────────────────────────────────────────────
+  test:
+    name: Test (${{ matrix.go }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["1.22", "1.23"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+
+      - name: go mod verify
+        run: go mod verify
+
+      - name: Test with race detector
+        run: go test -race -count=1 -timeout=3m ./...
+
+      - name: Test with coverage (Go 1.22 only)
+        if: matrix.go == '1.22'
+        run: |
+          go test -race -count=1 -timeout=3m \
+            -coverprofile=coverage.out \
+            -covermode=atomic \
+            ./...
+
+          # Print per-package and total coverage
+          go tool cover -func=coverage.out
+
+          # Extract total coverage percentage
+          TOTAL=$(go tool cover -func=coverage.out | awk '/^total:/{print $3}')
+          echo "Total coverage: ${TOTAL}"
+          echo "COVERAGE=${TOTAL}" >> "$GITHUB_ENV"
+
+      - name: Upload coverage to GitHub Actions
+        if: matrix.go == '1.22'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-go${{ matrix.go }}
+          path: coverage.out
+          retention-days: 14
+
+  # ── Build ────────────────────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # Build all packages including the example
+      - name: Build all packages
+        run: go build ./...
+
+      - name: Build example binary
+        run: go build -o /dev/null ./examples/quickstart/...
+
+      # Ensure the module builds with -trimpath (reproducible builds)
+      - name: Build with -trimpath
+        run: go build -trimpath ./...
+
+  # ── Security ─────────────────────────────────────────────────────────────────
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # govulncheck scans for known Go vulnerabilities in dependencies
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: govulncheck
+        run: govulncheck ./...
+
+  # ── Summary ──────────────────────────────────────────────────────────────────
+  summary:
+    name: CI Summary
+    needs: [lint, test, build, security]
+    runs-on: ubuntu-latest
+    if: always()   # run even if previous jobs failed
+
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [ "${{ needs.lint.result }}"     != "success" ] ||
+             [ "${{ needs.test.result }}"     != "success" ] ||
+             [ "${{ needs.build.result }}"    != "success" ] ||
+             [ "${{ needs.security.result }}" != "success" ]; then
+            echo "::error::One or more CI jobs failed."
+            exit 1
+          fi
+          echo "✓ All CI jobs passed."
