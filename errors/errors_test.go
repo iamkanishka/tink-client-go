@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	tinkErrors "github.com/iamkanishka/tink-client-go/errors"
@@ -11,7 +12,10 @@ import (
 )
 
 func TestTinkError_ImplementsError(t *testing.T) {
-	var e error = &tinkErrors.TinkError{Type: types.ErrorTypeAPI, Message: "test"}
+	e := &tinkErrors.TinkError{
+		Type: types.ErrorTypeAuthentication, Message: "Unauthorized",
+		StatusCode: http.StatusUnauthorized, ErrorCode: "TOKEN_INVALID",
+	}
 	if e.Error() == "" {
 		t.Error("Error() must return non-empty string")
 	}
@@ -23,9 +27,21 @@ func TestTinkError_Format(t *testing.T) {
 		name     string
 		contains string
 	}{
-		{"with status", &tinkErrors.TinkError{Message: "Unauthorized", StatusCode: 401}, "[401]"},
-		{"with error code", &tinkErrors.TinkError{Message: "Bad", StatusCode: 400, ErrorCode: "INVALID_SCOPE"}, "INVALID_SCOPE"},
-		{"no status", &tinkErrors.TinkError{Message: "Connection refused"}, "Connection refused"},
+		{
+			name:     "with status",
+			e:        &tinkErrors.TinkError{Message: "Unauthorized", StatusCode: 401},
+			contains: "[401]",
+		},
+		{
+			name:     "with error code",
+			e:        &tinkErrors.TinkError{Message: "Bad", StatusCode: 400, ErrorCode: "INVALID_SCOPE"},
+			contains: "INVALID_SCOPE",
+		},
+		{
+			name:     "no status",
+			e:        &tinkErrors.TinkError{Message: "Connection refused"},
+			contains: "Connection refused",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -33,7 +49,7 @@ func TestTinkError_Format(t *testing.T) {
 			if got == "" {
 				t.Error("Format() must not be empty")
 			}
-			if tc.contains != "" && !containsStr(got, tc.contains) {
+			if tc.contains != "" && !strings.Contains(got, tc.contains) {
 				t.Errorf("Format() = %q, want to contain %q", got, tc.contains)
 			}
 		})
@@ -54,19 +70,19 @@ func TestTinkError_Retryable(t *testing.T) {
 		name     string
 		expected bool
 	}{
-		{"network_error", &tinkErrors.TinkError{Type: types.ErrorTypeNetwork}, true},
-		{"timeout", &tinkErrors.TinkError{Type: types.ErrorTypeTimeout}, true},
-		{"429", &tinkErrors.TinkError{Type: types.ErrorTypeAPI, StatusCode: 429}, true},
-		{"500", &tinkErrors.TinkError{Type: types.ErrorTypeAPI, StatusCode: 500}, true},
-		{"502", &tinkErrors.TinkError{Type: types.ErrorTypeAPI, StatusCode: 502}, true},
-		{"503", &tinkErrors.TinkError{Type: types.ErrorTypeAPI, StatusCode: 503}, true},
-		{"504", &tinkErrors.TinkError{Type: types.ErrorTypeAPI, StatusCode: 504}, true},
-		{"408", &tinkErrors.TinkError{Type: types.ErrorTypeAPI, StatusCode: 408}, true},
-		{"401", &tinkErrors.TinkError{Type: types.ErrorTypeAuthentication, StatusCode: 401}, false},
-		{"400", &tinkErrors.TinkError{Type: types.ErrorTypeValidation, StatusCode: 400}, false},
-		{"404", &tinkErrors.TinkError{Type: types.ErrorTypeAPI, StatusCode: 404}, false},
-		{"validation_no_status", &tinkErrors.TinkError{Type: types.ErrorTypeValidation}, false},
-		{"decode_error", &tinkErrors.TinkError{Type: types.ErrorTypeDecode}, false},
+		{name: "network_error", e: &tinkErrors.TinkError{Type: types.ErrorTypeNetwork}, expected: true},
+		{name: "timeout", e: &tinkErrors.TinkError{Type: types.ErrorTypeTimeout}, expected: true},
+		{name: "429", e: &tinkErrors.TinkError{Type: types.ErrorTypeAPI, StatusCode: 429}, expected: true},
+		{name: "500", e: &tinkErrors.TinkError{Type: types.ErrorTypeAPI, StatusCode: 500}, expected: true},
+		{name: "502", e: &tinkErrors.TinkError{Type: types.ErrorTypeAPI, StatusCode: 502}, expected: true},
+		{name: "503", e: &tinkErrors.TinkError{Type: types.ErrorTypeAPI, StatusCode: 503}, expected: true},
+		{name: "504", e: &tinkErrors.TinkError{Type: types.ErrorTypeAPI, StatusCode: 504}, expected: true},
+		{name: "408", e: &tinkErrors.TinkError{Type: types.ErrorTypeAPI, StatusCode: 408}, expected: true},
+		{name: "401", e: &tinkErrors.TinkError{Type: types.ErrorTypeAuthentication, StatusCode: 401}, expected: false},
+		{name: "400", e: &tinkErrors.TinkError{Type: types.ErrorTypeValidation, StatusCode: 400}, expected: false},
+		{name: "404", e: &tinkErrors.TinkError{Type: types.ErrorTypeAPI, StatusCode: 404}, expected: false},
+		{name: "validation_no_status", e: &tinkErrors.TinkError{Type: types.ErrorTypeValidation}, expected: false},
+		{name: "decode_error", e: &tinkErrors.TinkError{Type: types.ErrorTypeDecode}, expected: false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -79,15 +95,15 @@ func TestTinkError_Retryable(t *testing.T) {
 
 func TestFromResponse_StatusMapping(t *testing.T) {
 	cases := []struct {
-		status  int
 		errType types.ErrorType
+		status  int
 	}{
-		{http.StatusUnauthorized, types.ErrorTypeAuthentication},
-		{http.StatusTooManyRequests, types.ErrorTypeRateLimit},
-		{http.StatusBadRequest, types.ErrorTypeValidation},
-		{http.StatusForbidden, types.ErrorTypeAPI},
-		{http.StatusInternalServerError, types.ErrorTypeAPI},
-		{http.StatusBadGateway, types.ErrorTypeAPI},
+		{errType: types.ErrorTypeAuthentication, status: http.StatusUnauthorized},
+		{errType: types.ErrorTypeRateLimit, status: http.StatusTooManyRequests},
+		{errType: types.ErrorTypeValidation, status: http.StatusBadRequest},
+		{errType: types.ErrorTypeAPI, status: http.StatusForbidden},
+		{errType: types.ErrorTypeAPI, status: http.StatusInternalServerError},
+		{errType: types.ErrorTypeAPI, status: http.StatusBadGateway},
 	}
 	for _, tc := range cases {
 		t.Run(fmt.Sprintf("status_%d", tc.status), func(t *testing.T) {
@@ -108,13 +124,13 @@ func TestFromResponse_MessageExtraction(t *testing.T) {
 		body    string
 		wantMsg string
 	}{
-		{"errorMessage field", `{"errorMessage":"Token invalid"}`, "Token invalid"},
-		{"message field", `{"message":"Rate limited"}`, "Rate limited"},
-		{"error field", `{"error":"invalid_grant"}`, "invalid_grant"},
-		{"error_description field", `{"error_description":"The token has expired"}`, "The token has expired"},
-		{"plain text body", "Internal Server Error", "Internal Server Error"},
-		{"empty body", "", "HTTP error"},
-		{"empty JSON object", `{}`, "unknown error"},
+		{name: "errorMessage field", body: `{"errorMessage":"Token invalid"}`, wantMsg: "Token invalid"},
+		{name: "message field", body: `{"message":"Rate limited"}`, wantMsg: "Rate limited"},
+		{name: "error field", body: `{"error":"invalid_grant"}`, wantMsg: "invalid_grant"},
+		{name: "error_description field", body: `{"error_description":"The token has expired"}`, wantMsg: "The token has expired"},
+		{name: "plain text body", body: "Internal Server Error", wantMsg: "Internal Server Error"},
+		{name: "empty body", body: "", wantMsg: "HTTP error"},
+		{name: "empty JSON object", body: `{}`, wantMsg: "unknown error"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -156,10 +172,10 @@ func TestFromNetworkError_Types(t *testing.T) {
 		wantType  types.ErrorType
 		retryable bool
 	}{
-		{"connection refused", types.ErrorTypeNetwork, true},
-		{"request timeout after 30s", types.ErrorTypeTimeout, true},
-		{"context deadline exceeded", types.ErrorTypeTimeout, true},
-		{"context Deadline Exceeded (uppercase)", types.ErrorTypeTimeout, true},
+		{msg: "connection refused", wantType: types.ErrorTypeNetwork, retryable: true},
+		{msg: "request timeout after 30s", wantType: types.ErrorTypeTimeout, retryable: true},
+		{msg: "context deadline exceeded", wantType: types.ErrorTypeTimeout, retryable: true},
+		{msg: "context Deadline Exceeded (uppercase)", wantType: types.ErrorTypeTimeout, retryable: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.msg, func(t *testing.T) {
@@ -240,16 +256,4 @@ func TestErrorsAs(t *testing.T) {
 	if te.Type != types.ErrorTypeValidation {
 		t.Errorf("te.Type = %q, want validation_error", te.Type)
 	}
-}
-
-func containsStr(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub || sub == "" ||
-		func() bool {
-			for i := 0; i <= len(s)-len(sub); i++ {
-				if s[i:i+len(sub)] == sub {
-					return true
-				}
-			}
-			return false
-		}())
 }

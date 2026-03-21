@@ -10,10 +10,10 @@ import (
 // entry holds the metadata for one cached item.
 // Fields are ordered to minimise struct padding.
 type entry struct {
-	expiresAt time.Time     // 24 bytes
+	expiresAt time.Time    // 24 bytes
 	elem      *list.Element // 8 bytes
-	value     interface{}   // 16 bytes
-	key       string        // 16 bytes
+	value     interface{}  // 16 bytes
+	key       string       // 16 bytes
 }
 
 // LRU is a concurrency-safe, size-bounded LRU cache with per-entry TTL expiry.

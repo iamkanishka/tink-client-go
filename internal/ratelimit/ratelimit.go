@@ -1,7 +1,6 @@
 // Package ratelimit provides a thread-safe in-process sliding-window rate limiter.
 //
-// The limiter stores a default limit and period at construction time so callers
-// only need to supply the key on each request:
+// Usage:
 //
 //	l := ratelimit.New(100, time.Hour)
 //	if !l.Allow("user:u1") {
@@ -16,31 +15,31 @@ import (
 
 // Info holds the current rate-limit state for a key.
 type Info struct {
+	ResetsIn  time.Duration
 	Count     int
 	Limit     int
 	Remaining int
-	ResetsIn  time.Duration
 }
 
 // bucket tracks the sliding-window count for one key.
-// Fields are ordered to minimise struct padding.
+// windowStart (24B) before count (8B) gives the tightest packing.
 type bucket struct {
-	windowStart time.Time // 24 bytes
-	count       int       // 8 bytes
+	windowStart time.Time
+	count       int
 }
 
 // Limiter is a fixed-limit, fixed-period sliding-window rate limiter.
-// It is safe for concurrent use.
+// Safe for concurrent use.
+// Field order: map (8B), period (8B), mu (8B), limit+enabled packed last.
 type Limiter struct {
-	mu      sync.Mutex
 	buckets map[string]*bucket
-	limit   int
 	period  time.Duration
+	mu      sync.Mutex
+	limit   int
 	enabled bool
 }
 
 // New creates a Limiter with the given limit and window period.
-// All calls to Allow/Remaining/Inspect use these defaults.
 func New(limit int, period time.Duration) *Limiter {
 	if limit <= 0 {
 		limit = 100
@@ -65,7 +64,7 @@ func (l *Limiter) SetEnabled(v bool) {
 }
 
 // Allow reports whether a request for key is within the rate limit.
-// Increments the counter on "ok". Returns true immediately when disabled.
+// Increments the counter on success. Returns true immediately when disabled.
 func (l *Limiter) Allow(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -114,7 +113,7 @@ func (l *Limiter) Inspect(key string) Info {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if !l.enabled {
-		return Info{Count: 0, Limit: l.limit, Remaining: l.limit}
+		return Info{Limit: l.limit, Remaining: l.limit}
 	}
 	b := l.bucket(key)
 	rem := l.limit - b.count
@@ -125,7 +124,7 @@ func (l *Limiter) Inspect(key string) Info {
 	if resetsIn < 0 {
 		resetsIn = 0
 	}
-	return Info{Count: b.count, Limit: l.limit, Remaining: rem, ResetsIn: resetsIn}
+	return Info{ResetsIn: resetsIn, Count: b.count, Limit: l.limit, Remaining: rem}
 }
 
 // bucket returns the current-window bucket for key, resetting if the window
