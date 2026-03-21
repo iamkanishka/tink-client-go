@@ -49,29 +49,29 @@ var nonCacheablePatterns = []string{
 
 // Config holds options for creating an HTTPClient.
 type Config struct {
-	BaseURL        string
-	Timeout        time.Duration
-	MaxRetries     int
-	CacheEnabled   bool
-	CacheMaxSize   int
-	AccessToken    string
-	UserID         string
 	DefaultHeaders map[string]string
 	HTTPClient     *http.Client
+	BaseURL        string
+	AccessToken    string
+	UserID         string
+	Timeout        time.Duration
+	MaxRetries     int
+	CacheMaxSize   int
+	CacheEnabled   bool
 }
 
 // HTTPClient is the production HTTP client. Safe for concurrent use.
 type HTTPClient struct {
-	baseURL        string
-	timeout        time.Duration
-	retryPolicy    retry.Policy
-	cacheEnabled   bool
+	defaultHeaders map[string]string
 	lru            *cache.LRU
 	httpClient     *http.Client
-	defaultHeaders map[string]string
-	mu             sync.RWMutex
+	retryPolicy    retry.Policy
+	baseURL        string
 	token          string
 	userID         string
+	mu             sync.RWMutex
+	timeout        time.Duration
+	cacheEnabled   bool
 }
 
 // New constructs an HTTPClient from Config.
@@ -173,13 +173,13 @@ func (c *HTTPClient) Get(ctx context.Context, path string, query url.Values, dst
 		if hit, ok := c.lru.Get(key); ok {
 			return roundTripJSON(hit, dst)
 		}
-		if err := c.dispatch(ctx, http.MethodGet, full, nil, "", dst); err != nil {
+		if err := c.dispatch(ctx, http.MethodGet, full, nil, dst, ""); err != nil {
 			return err
 		}
 		c.lru.Set(key, copyVal(dst), ttlFor(full))
 		return nil
 	}
-	return c.dispatch(ctx, http.MethodGet, full, nil, "", dst)
+	return c.dispatch(ctx, http.MethodGet, full, nil, dst, "")
 }
 
 // GetRaw performs a GET and returns raw bytes (for PDF/binary responses).
@@ -194,8 +194,8 @@ func (c *HTTPClient) GetRaw(ctx context.Context, path string, query url.Values) 
 }
 
 // Post sends a JSON-encoded POST. Invalidates user cache on success.
-func (c *HTTPClient) Post(ctx context.Context, path string, body interface{}, dst interface{}) error {
-	if err := c.dispatch(ctx, http.MethodPost, path, body, "application/json", dst); err != nil {
+func (c *HTTPClient) Post(ctx context.Context, path string, body, dst interface{}) error {
+	if err := c.dispatch(ctx, http.MethodPost, path, body, dst, "application/json"); err != nil {
 		return err
 	}
 	c.InvalidateUser()
@@ -214,8 +214,8 @@ func (c *HTTPClient) PostForm(ctx context.Context, path string, form url.Values,
 }
 
 // Patch sends a JSON-encoded PATCH. Invalidates cache on success.
-func (c *HTTPClient) Patch(ctx context.Context, path string, body interface{}, dst interface{}) error {
-	if err := c.dispatch(ctx, http.MethodPatch, path, body, "application/json", dst); err != nil {
+func (c *HTTPClient) Patch(ctx context.Context, path string, body, dst interface{}) error {
+	if err := c.dispatch(ctx, http.MethodPatch, path, body, dst, "application/json"); err != nil {
 		return err
 	}
 	c.InvalidateUser()
@@ -224,7 +224,7 @@ func (c *HTTPClient) Patch(ctx context.Context, path string, body interface{}, d
 
 // Delete sends a DELETE. Invalidates cache on success.
 func (c *HTTPClient) Delete(ctx context.Context, path string) error {
-	if err := c.dispatch(ctx, http.MethodDelete, path, nil, "", nil); err != nil {
+	if err := c.dispatch(ctx, http.MethodDelete, path, nil, nil, ""); err != nil {
 		return err
 	}
 	c.InvalidateUser()
@@ -233,7 +233,7 @@ func (c *HTTPClient) Delete(ctx context.Context, path string) error {
 
 // ── core dispatch ──────────────────────────────────────────────────────────
 
-func (c *HTTPClient) dispatch(ctx context.Context, method, path string, body interface{}, ct string, dst interface{}) error {
+func (c *HTTPClient) dispatch(ctx context.Context, method, path string, body, dst interface{}, ct string) error {
 	return retry.Do(ctx, c.retryPolicy, func() error {
 		raw, err := c.execRaw(ctx, method, path, body, ct)
 		if err != nil {

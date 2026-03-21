@@ -40,9 +40,9 @@ const (
 type TokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
 	Scope        string `json:"scope"`
 	RefreshToken string `json:"refresh_token,omitempty"`
+	ExpiresIn    int    `json:"expires_in"`
 }
 
 type AuthorizationURLOptions struct {
@@ -88,8 +88,8 @@ type TargetAmount struct {
 }
 
 type PaginationOptions struct {
-	PageSize  int    `json:"pageSize,omitempty"`
 	PageToken string `json:"pageToken,omitempty"`
+	PageSize  int    `json:"pageSize,omitempty"`
 }
 
 // ── Accounts ──────────────────────────────────────────────────────────────
@@ -256,7 +256,7 @@ type CreateUserParams struct {
 
 type TinkUser struct {
 	UserID         string `json:"userId,omitempty"`
-	User_ID        string `json:"user_id,omitempty"`
+	UserID2        string `json:"user_id,omitempty"` // Tink API returns snake_case; prefer UserID field
 	ExternalUserID string `json:"externalUserId,omitempty"`
 }
 
@@ -436,9 +436,9 @@ type CalendarEventsResponse struct {
 }
 
 type CreateCalendarEventParams struct {
+	EventAmount *CalendarEventAmount `json:"eventAmount,omitempty"`
 	Title       string               `json:"title"`
 	DueDate     string               `json:"dueDate,omitempty"`
-	EventAmount *CalendarEventAmount `json:"eventAmount,omitempty"`
 }
 
 type CalendarSummariesOptions struct {
@@ -545,8 +545,8 @@ type BuildAccountCheckLinkOptions struct {
 	ClientID    string
 	Market      string
 	RedirectURI string
-	Test        bool
 	State       string
+	Test        bool
 }
 
 type ConsentUpdateLinkOptions struct {
@@ -595,10 +595,10 @@ type ConnectorAccount struct {
 
 type ConnectorTransaction struct {
 	ExternalID  string  `json:"externalId"`
-	Amount      float64 `json:"amount"`
-	Date        int64   `json:"date"`
 	Description string  `json:"description"`
 	Type        string  `json:"type"`
+	Amount      float64 `json:"amount"`
+	Date        int64   `json:"date"`
 }
 
 type ConnectorTransactionAccount struct {
@@ -644,26 +644,26 @@ type LinkURLOptions struct {
 	AuthorizationCode string
 	PaymentRequestID  string
 	State             string
-	Test              bool
 	InputProvider     string
 	InputUsername     string
+	Test              bool
 	Iframe            bool
 }
 
 // ── Connectivity ──────────────────────────────────────────────────────────
 
 type ProviderStatusResult struct {
-	Active   bool      `json:"active"`
 	Provider *Provider `json:"provider,omitempty"`
+	Active   bool      `json:"active"`
 }
 
 type CredentialConnectivity struct {
 	CredentialID  string `json:"credentialId"`
 	ProviderName  string `json:"providerName"`
 	Status        string `json:"status"`
-	Healthy       bool   `json:"healthy"`
 	LastRefreshed string `json:"lastRefreshed,omitempty"`
 	ErrorMessage  string `json:"errorMessage,omitempty"`
+	Healthy       bool   `json:"healthy"`
 }
 
 type ConnectivitySummary struct {
@@ -692,8 +692,8 @@ const (
 )
 
 type WebhookEvent struct {
-	Type      string                 `json:"type"`
 	Data      map[string]interface{} `json:"data"`
-	Timestamp string                 `json:"timestamp,omitempty"`
 	Raw       map[string]interface{} `json:"-"`
+	Type      string                 `json:"type"`
+	Timestamp string                 `json:"timestamp,omitempty"`
 }

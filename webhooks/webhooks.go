@@ -110,9 +110,9 @@ type HandlerFunc func(ctx context.Context, event *types.WebhookEvent) error
 // Handler combines signature verification with typed event dispatch.
 // It is safe for concurrent use.
 type Handler struct {
+	handlers map[string][]HandlerFunc
 	verifier *Verifier
 	mu       sync.RWMutex
-	handlers map[string][]HandlerFunc
 }
 
 // NewHandler creates a Handler for the given webhook secret.

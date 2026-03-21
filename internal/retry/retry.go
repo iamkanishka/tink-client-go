@@ -4,17 +4,18 @@ package retry
 import (
 	"context"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 )
 
 // Policy defines retry behaviour.
+// Fields are ordered to minimise struct padding (function pointer last).
 type Policy struct {
-	MaxAttempts  int
-	BaseDelay    time.Duration
-	MaxDelay     time.Duration
-	JitterFactor float64
-	ShouldRetry  func(err error) bool
+	BaseDelay    time.Duration        // 8 bytes
+	MaxDelay     time.Duration        // 8 bytes
+	JitterFactor float64              // 8 bytes
+	MaxAttempts  int                  // 8 bytes
+	ShouldRetry  func(err error) bool // 8 bytes
 }
 
 // DefaultPolicy returns sensible production defaults.
@@ -61,13 +62,15 @@ func Do(ctx context.Context, p Policy, fn func() error) error {
 }
 
 // CalculateDelay returns the back-off duration for attempt n (1-indexed).
-// Formula: min(base * 2^(n-1), max) ± jitter
-func CalculateDelay(attempt int, base, max time.Duration, jitterFactor float64) time.Duration {
+// Formula: min(base * 2^(n-1), maxDelay) ± jitter.
+// Uses math/rand/v2 which is crypto-seeded by default in Go 1.20+.
+func CalculateDelay(attempt int, base, maxDelay time.Duration, jitterFactor float64) time.Duration {
 	exp := float64(base) * math.Pow(2, float64(attempt-1))
-	if max > 0 && time.Duration(exp) > max {
-		exp = float64(max)
+	if maxDelay > 0 && time.Duration(exp) > maxDelay {
+		exp = float64(maxDelay)
 	}
-	jitter := exp * jitterFactor * (rand.Float64()*2 - 1)
+	// rand.Float64 from math/rand/v2 is automatically seeded (no manual seed needed).
+	jitter := exp * jitterFactor * (rand.Float64()*2 - 1) //nolint:gosec // non-cryptographic jitter is intentional
 	if d := time.Duration(exp + jitter); d > 0 {
 		return d
 	}

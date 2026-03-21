@@ -11,14 +11,15 @@ import (
 )
 
 // TinkError is the structured error returned by all client methods.
+// Fields are ordered to minimise struct padding.
 type TinkError struct {
-	Type         types.ErrorType
-	Message      string
-	StatusCode   int
-	ErrorCode    string
-	RequestID    string
-	ErrorDetails map[string]interface{}
-	Cause        error
+	ErrorDetails map[string]interface{} // 8 bytes (map header)
+	Cause        error                  // 16 bytes (interface)
+	Message      string                 // 16 bytes
+	ErrorCode    string                 // 16 bytes
+	RequestID    string                 // 16 bytes
+	Type         types.ErrorType        // 16 bytes (string alias)
+	StatusCode   int                    // 8 bytes
 }
 
 func (e *TinkError) Error() string { return e.Format() }
@@ -60,12 +61,12 @@ func FromResponse(statusCode int, body []byte) *TinkError {
 	var details map[string]interface{}
 	_ = json.Unmarshal(body, &details)
 	return &TinkError{
+		ErrorDetails: details,
 		Type:         typeFromStatus(statusCode),
 		Message:      extractMessage(body),
 		StatusCode:   statusCode,
 		ErrorCode:    extractField(body, "errorCode", "error"),
 		RequestID:    extractField(body, "requestId"),
-		ErrorDetails: details,
 	}
 }
 
@@ -94,7 +95,7 @@ func FromDecodeError(cause error) *TinkError {
 	return &TinkError{Type: types.ErrorTypeDecode, Message: msg, Cause: cause}
 }
 
-// Validation creates a validation_error for missing/invalid config.
+// Validation creates a validation_error for missing/invalid configuration.
 func Validation(msg string) *TinkError {
 	return &TinkError{Type: types.ErrorTypeValidation, Message: msg}
 }

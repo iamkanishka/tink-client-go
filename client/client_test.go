@@ -29,32 +29,6 @@ func mockServer(t *testing.T, status int, body interface{}) *httptest.Server {
 	}))
 }
 
-// routedServer returns a server that dispatches to different handlers by path prefix.
-func routedServer(t *testing.T, routes map[string]func(http.ResponseWriter, *http.Request)) *httptest.Server {
-	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for prefix, handler := range routes {
-			if strings.HasPrefix(r.URL.Path, prefix) {
-				handler(w, r)
-				return
-			}
-		}
-		// Default: 404
-		http.Error(w, `{"errorMessage":"not found"}`, http.StatusNotFound)
-	}))
-}
-
-func jsonHandler(t *testing.T, status int, body interface{}) func(http.ResponseWriter, *http.Request) {
-	t.Helper()
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(status)
-		if body != nil {
-			json.NewEncoder(w).Encode(body)
-		}
-	}
-}
-
 // newTestClient creates a Client pointed at a test server with caching disabled.
 func newTestClient(t *testing.T, srv *httptest.Server, opts ...client.Option) *client.Client {
 	t.Helper()

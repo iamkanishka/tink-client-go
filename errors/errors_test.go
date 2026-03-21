@@ -19,8 +19,8 @@ func TestTinkError_ImplementsError(t *testing.T) {
 
 func TestTinkError_Format(t *testing.T) {
 	cases := []struct {
-		name     string
 		e        *tinkErrors.TinkError
+		name     string
 		contains string
 	}{
 		{"with status", &tinkErrors.TinkError{Message: "Unauthorized", StatusCode: 401}, "[401]"},
@@ -50,8 +50,8 @@ func TestTinkError_Unwrap(t *testing.T) {
 
 func TestTinkError_Retryable(t *testing.T) {
 	cases := []struct {
-		name     string
 		e        *tinkErrors.TinkError
+		name     string
 		expected bool
 	}{
 		{"network_error", &tinkErrors.TinkError{Type: types.ErrorTypeNetwork}, true},
@@ -243,7 +243,7 @@ func TestErrorsAs(t *testing.T) {
 }
 
 func containsStr(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub || len(sub) == 0 ||
+	return len(s) >= len(sub) && (s == sub || sub == "" ||
 		func() bool {
 			for i := 0; i <= len(s)-len(sub); i++ {
 				if s[i:i+len(sub)] == sub {

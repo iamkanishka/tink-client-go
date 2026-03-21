@@ -64,6 +64,10 @@ const (
 //   - AccessToken  → TINK_ACCESS_TOKEN
 //   - BaseURL      → TINK_BASE_URL
 type Config struct {
+	// DefaultHeaders are extra HTTP headers sent on every request.
+	DefaultHeaders map[string]string
+	// HTTPClient overrides the default net/http.Client (e.g. for testing).
+	HTTPClient *http.Client
 	// ClientID is your Tink application client ID.
 	ClientID string
 	// ClientSecret is your Tink application client secret.
@@ -78,14 +82,10 @@ type Config struct {
 	Timeout time.Duration
 	// MaxRetries is the maximum number of retry attempts. Defaults to 3.
 	MaxRetries int
-	// DisableCache disables the in-memory LRU response cache.
-	DisableCache bool
 	// CacheMaxSize is the maximum number of LRU cache entries. Defaults to 512.
 	CacheMaxSize int
-	// DefaultHeaders are extra HTTP headers sent on every request.
-	DefaultHeaders map[string]string
-	// HTTPClient overrides the default net/http.Client (e.g. for testing).
-	HTTPClient *http.Client
+	// DisableCache disables the in-memory LRU response cache.
+	DisableCache bool
 }
 
 // Client is the main Tink Open Banking API client.
@@ -329,16 +329,16 @@ func (c *Client) NewWebhookVerifier(secret string) *webhooks.Verifier {
 // ── Meta ──────────────────────────────────────────────────────────────────
 
 // Info returns metadata about this client instance.
-func (c *Client) Info() ClientInfo {
-	return ClientInfo{
+func (c *Client) Info() Info {
+	return Info{
 		Version:  version,
 		BaseURL:  c.baseURL,
 		HasToken: c.http.AccessToken() != "",
 	}
 }
 
-// ClientInfo holds metadata returned by Info().
-type ClientInfo struct {
+// Info holds metadata returned by Client.Info().
+type Info struct {
 	Version  string
 	BaseURL  string
 	HasToken bool
@@ -418,10 +418,10 @@ func NewWithOptions(opts ...Option) (*Client, error) {
 
 // TokenInfo holds parsed token expiry information.
 type TokenInfo struct {
-	ExpiresIn    int
 	ExpiresAt    time.Time
 	Scope        string
 	RefreshToken string
+	ExpiresIn    int
 }
 
 // ParseToken extracts expiry information from a TokenResponse.
