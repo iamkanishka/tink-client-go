@@ -1,0 +1,126 @@
+# golangci-lint configuration for tink-client-go
+# https://golangci-lint.run/usage/configuration/
+
+run:
+  timeout: 5m
+  go: "1.22"
+  tests: true
+
+output:
+  formats:
+    - format: colored-line-number
+  sort-results: true
+
+linters:
+  disable-all: true
+  enable:
+    # Core correctness
+    - govet          # go vet checks
+    - errcheck       # unchecked errors
+    - staticcheck    # comprehensive static analysis (includes SA, S, ST rules)
+    - unused         # unused code
+    - ineffassign    # assignments that have no effect
+    - gosimple       # simplification suggestions
+
+    # Formatting
+    - gofmt          # standard Go formatting
+    - goimports      # import ordering
+
+    # Style
+    - revive         # fast, configurable linter (replacement for golint)
+    - gocritic       # opinionated style checks
+
+    # Security
+    - gosec          # security issues
+
+    # Bugs
+    - bodyclose      # HTTP response body not closed
+    - noctx          # HTTP request created without context
+    - rowserrcheck   # sql.Rows.Err not checked
+    - sqlclosecheck  # sql.Rows/Stmt not closed
+    - exhaustive     # missing cases in switch on enum types
+
+    # Performance
+    - prealloc       # slice pre-allocation suggestions
+
+linters-settings:
+  govet:
+    enable-all: true
+    disable:
+      - shadow       # too many false positives in idiomatic Go
+
+  errcheck:
+    check-type-assertions: true
+    check-blank: false  # blank identifiers are sometimes intentional
+
+  staticcheck:
+    checks:
+      - "all"
+      - "-SA1019"    # deprecated API usage (we deliberately support old patterns)
+
+  revive:
+    rules:
+      - name: exported
+        arguments:
+          - "checkPrivateReceivers"
+          - "sayRepetitiveInsteadOfStutters"
+      - name: error-return
+      - name: error-strings       # error strings should not be capitalised
+      - name: var-naming
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: context-keys-type
+      - name: context-as-argument
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    disabled-checks:
+      - hugeParam        # false positives on large structs passed intentionally
+      - rangeValCopy     # too aggressive for our usage patterns
+
+  gosec:
+    excludes:
+      - G115    # integer overflow (false positives on safe conversions)
+    config:
+      G301: "0750"  # file permissions
+      G302: "0750"
+      G306: "0750"
+
+  gofmt:
+    simplify: true
+
+  goimports:
+    local-prefixes: github.com/iamkanishka/tink-client-go
+
+  exhaustive:
+    default-signifies-exhaustive: true
+
+issues:
+  exclude-rules:
+    # Test files have relaxed rules
+    - path: "_test\\.go"
+      linters:
+        - gosec
+        - errcheck    # test helpers often ignore errors intentionally
+
+    # Example files are illustrative, not production code
+    - path: "examples/"
+      linters:
+        - gosec
+        - errcheck
+        - revive
+
+    # Internal packages don't need exported comments
+    - path: "internal/"
+      linters:
+        - revive
+      text: "exported"
+
+  max-issues-per-linter: 50
+  max-same-issues: 5
