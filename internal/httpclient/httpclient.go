@@ -1,4 +1,13 @@
 // Package httpclient is the transport layer for all Tink API calls.
+//
+// Features:
+//   - Bearer token injection with thread-safe atomic-style RWMutex updates
+//   - JSON and form-encoded request/response bodies
+//   - In-memory LRU caching with per-resource TTLs
+//   - Automatic retry with exponential back-off (via internal/retry)
+//   - Context-propagated per-request timeouts
+//   - Structured TinkError on every failure
+//   - Cache invalidation after mutating requests
 package httpclient
 
 import (
@@ -7,17 +16,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
+	stderrors "errors"
+
 	"github.com/iamkanishka/tink-client-go/errors"
 	"github.com/iamkanishka/tink-client-go/internal/cache"
 	"github.com/iamkanishka/tink-client-go/internal/retry"
 )
 
+// cacheTTLs maps resource type names to their LRU TTL.
+// Values reflect Tink API data freshness characteristics.
 var cacheTTLs = map[string]time.Duration{
 	"providers":    1 * time.Hour,
 	"categories":   24 * time.Hour,
@@ -31,6 +45,7 @@ var cacheTTLs = map[string]time.Duration{
 	"default":      5 * time.Minute,
 }
 
+// cacheablePatterns are URL path prefixes whose responses are safe to cache.
 var cacheablePatterns = []string{
 	"/api/v1/providers", "/api/v1/categories", "/api/v1/statistics",
 	"/api/v1/credentials", "/data/v2/accounts",
@@ -41,6 +56,8 @@ var cacheablePatterns = []string{
 	"/finance-management/v1/financial-calendar",
 }
 
+// nonCacheablePatterns are URL path prefixes that must never be cached
+// (auth flows, mutations, real-time endpoints).
 var nonCacheablePatterns = []string{
 	"/oauth", "/user/create", "/user/delete",
 	"/authorization-grant", "/link/v1/session",
@@ -48,6 +65,8 @@ var nonCacheablePatterns = []string{
 }
 
 // Config holds options for creating an HTTPClient.
+// Fields are ordered for minimal struct padding:
+// map/pointer fields first, then strings, then numeric and bool last.
 type Config struct {
 	DefaultHeaders map[string]string
 	HTTPClient     *http.Client
@@ -60,11 +79,14 @@ type Config struct {
 	CacheEnabled   bool
 }
 
-// HTTPClient is the production HTTP client. Safe for concurrent use.
-// Field order: map/ptr headers (8B each × 3), Policy struct (40B),
-// strings (16B each × 3), timeout (8B), bool (1B), RWMutex (24B).
+// HTTPClient is the production-grade HTTP client for the Tink API.
+// It is safe for concurrent use by multiple goroutines.
 //
-//nolint:govet // fieldalignment: RWMutex must not be copied; cannot be reordered freely
+// Field ordering deliberately places timeout and cacheEnabled before mu
+// so that the 24-byte sync.RWMutex lands at the end without forcing
+// padding after the bool field.
+//
+//nolint:govet // fieldalignment: sync.RWMutex must not be copied; this layout is intentional
 type HTTPClient struct {
 	defaultHeaders map[string]string
 	lru            *cache.LRU
@@ -78,7 +100,7 @@ type HTTPClient struct {
 	mu             sync.RWMutex
 }
 
-// New constructs an HTTPClient from Config.
+// New constructs an HTTPClient from Config, applying safe defaults.
 func New(cfg Config) *HTTPClient {
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 30 * time.Second
@@ -97,7 +119,8 @@ func New(cfg Config) *HTTPClient {
 	policy := retry.DefaultPolicy()
 	policy.MaxAttempts = cfg.MaxRetries
 	policy.ShouldRetry = func(err error) bool {
-		if te, ok := err.(*errors.TinkError); ok {
+		var te *errors.TinkError
+		if stderrors.As(err, &te) {
 			return te.Retryable()
 		}
 		return false
@@ -126,28 +149,36 @@ func New(cfg Config) *HTTPClient {
 	}
 }
 
+// AccessToken returns the current bearer token (RLock-safe).
 func (c *HTTPClient) AccessToken() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.token
 }
+
+// SetAccessToken atomically replaces the bearer token.
 func (c *HTTPClient) SetAccessToken(t string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.token = t
 }
+
+// UserID returns the current user-ID scope.
 func (c *HTTPClient) UserID() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.userID
 }
+
+// SetUserID sets the user ID used for cache scoping.
 func (c *HTTPClient) SetUserID(id string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.userID = id
 }
 
-// InvalidateUser removes all cache entries for the current (or given) user.
+// InvalidateUser removes all cached entries for the current (or given) user.
+// Called automatically after every mutating request.
 func (c *HTTPClient) InvalidateUser(userID ...string) {
 	c.mu.RLock()
 	uid := c.userID
@@ -169,8 +200,11 @@ func (c *HTTPClient) InvalidateCache(prefix ...string) {
 	}
 }
 
-// Get performs a cached GET request and decodes into dst.
-func (c *HTTPClient) Get(ctx context.Context, path string, query url.Values, dst interface{}) error {
+// ── HTTP verbs ─────────────────────────────────────────────────────────────
+
+// Get performs a GET request, decoding the JSON response into dst.
+// Responses for cacheable paths are stored in the LRU cache.
+func (c *HTTPClient) Get(ctx context.Context, path string, query url.Values, dst any) error {
 	full := buildPath(path, query)
 	if c.cacheEnabled && isCacheable(full) {
 		key := c.cacheKey(full)
@@ -186,7 +220,8 @@ func (c *HTTPClient) Get(ctx context.Context, path string, query url.Values, dst
 	return c.dispatch(ctx, http.MethodGet, full, nil, dst, "")
 }
 
-// GetRaw performs a GET and returns raw bytes (for PDF/binary responses).
+// GetRaw performs a GET and returns the raw response bytes.
+// Use for binary endpoints (PDF downloads, etc.).
 func (c *HTTPClient) GetRaw(ctx context.Context, path string, query url.Values) ([]byte, error) {
 	var result []byte
 	err := retry.Do(ctx, c.retryPolicy, func() error {
@@ -197,8 +232,9 @@ func (c *HTTPClient) GetRaw(ctx context.Context, path string, query url.Values) 
 	return result, err
 }
 
-// Post sends a JSON-encoded POST. Invalidates user cache on success.
-func (c *HTTPClient) Post(ctx context.Context, path string, body, dst interface{}) error {
+// Post sends a JSON-encoded POST and decodes the response into dst.
+// The user cache is invalidated on success.
+func (c *HTTPClient) Post(ctx context.Context, path string, body, dst any) error {
 	if err := c.dispatch(ctx, http.MethodPost, path, body, dst, "application/json"); err != nil {
 		return err
 	}
@@ -206,8 +242,9 @@ func (c *HTTPClient) Post(ctx context.Context, path string, body, dst interface{
 	return nil
 }
 
-// PostForm sends an application/x-www-form-urlencoded POST. Invalidates cache on success.
-func (c *HTTPClient) PostForm(ctx context.Context, path string, form url.Values, dst interface{}) error {
+// PostForm sends an application/x-www-form-urlencoded POST.
+// The user cache is invalidated on success.
+func (c *HTTPClient) PostForm(ctx context.Context, path string, form url.Values, dst any) error {
 	if err := retry.Do(ctx, c.retryPolicy, func() error {
 		return c.execForm(ctx, path, form, dst)
 	}); err != nil {
@@ -217,8 +254,9 @@ func (c *HTTPClient) PostForm(ctx context.Context, path string, form url.Values,
 	return nil
 }
 
-// Patch sends a JSON-encoded PATCH. Invalidates cache on success.
-func (c *HTTPClient) Patch(ctx context.Context, path string, body, dst interface{}) error {
+// Patch sends a JSON-encoded PATCH and decodes the response into dst.
+// The user cache is invalidated on success.
+func (c *HTTPClient) Patch(ctx context.Context, path string, body, dst any) error {
 	if err := c.dispatch(ctx, http.MethodPatch, path, body, dst, "application/json"); err != nil {
 		return err
 	}
@@ -226,7 +264,8 @@ func (c *HTTPClient) Patch(ctx context.Context, path string, body, dst interface
 	return nil
 }
 
-// Delete sends a DELETE. Invalidates cache on success.
+// Delete sends a DELETE request.
+// The user cache is invalidated on success.
 func (c *HTTPClient) Delete(ctx context.Context, path string) error {
 	if err := c.dispatch(ctx, http.MethodDelete, path, nil, nil, ""); err != nil {
 		return err
@@ -235,9 +274,9 @@ func (c *HTTPClient) Delete(ctx context.Context, path string) error {
 	return nil
 }
 
-// ── core dispatch ──────────────────────────────────────────────────────────
+// ── Core dispatch ──────────────────────────────────────────────────────────
 
-func (c *HTTPClient) dispatch(ctx context.Context, method, path string, body, dst interface{}, ct string) error {
+func (c *HTTPClient) dispatch(ctx context.Context, method, path string, body, dst any, ct string) error {
 	return retry.Do(ctx, c.retryPolicy, func() error {
 		raw, err := c.execRaw(ctx, method, path, body, ct)
 		if err != nil {
@@ -253,7 +292,7 @@ func (c *HTTPClient) dispatch(ctx context.Context, method, path string, body, ds
 	})
 }
 
-func (c *HTTPClient) execRaw(ctx context.Context, method, path string, body interface{}, ct string) ([]byte, error) {
+func (c *HTTPClient) execRaw(ctx context.Context, method, path string, body any, ct string) ([]byte, error) {
 	rctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
@@ -270,7 +309,6 @@ func (c *HTTPClient) execRaw(ctx context.Context, method, path string, body inte
 	if err != nil {
 		return nil, errors.FromNetworkError(err)
 	}
-
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
 		if ct == "" {
@@ -291,12 +329,17 @@ func (c *HTTPClient) execRaw(ctx context.Context, method, path string, body inte
 		return nil, errors.FromDecodeError(err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		slog.DebugContext(rctx, "tink-client-go: non-2xx response",
+			slog.String("method", method),
+			slog.String("path", path),
+			slog.Int("status", resp.StatusCode),
+		)
 		return nil, errors.FromResponse(resp.StatusCode, respBody)
 	}
 	return respBody, nil
 }
 
-func (c *HTTPClient) execForm(ctx context.Context, path string, form url.Values, dst interface{}) error {
+func (c *HTTPClient) execForm(ctx context.Context, path string, form url.Values, dst any) error {
 	rctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
@@ -329,6 +372,7 @@ func (c *HTTPClient) execForm(ctx context.Context, path string, form url.Values,
 	return nil
 }
 
+// applyHeaders injects the Authorization header and any configured defaults.
 func (c *HTTPClient) applyHeaders(req *http.Request) {
 	c.mu.RLock()
 	tok := c.token
@@ -341,6 +385,7 @@ func (c *HTTPClient) applyHeaders(req *http.Request) {
 	}
 }
 
+// cacheKey builds a key scoped to the current user or token (last 16 chars).
 func (c *HTTPClient) cacheKey(path string) string {
 	c.mu.RLock()
 	scope := c.userID
@@ -348,8 +393,10 @@ func (c *HTTPClient) cacheKey(path string) string {
 		scope = c.token
 	}
 	c.mu.RUnlock()
-	if len(scope) > 16 {
-		scope = scope[len(scope)-16:]
+
+	const scopeLen = 16
+	if len(scope) > scopeLen {
+		scope = scope[len(scope)-scopeLen:]
 	}
 	if scope == "" {
 		scope = "public"
@@ -357,8 +404,9 @@ func (c *HTTPClient) cacheKey(path string) string {
 	return scope + ":" + path
 }
 
-// ── helpers ────────────────────────────────────────────────────────────────
+// ── Private helpers ────────────────────────────────────────────────────────
 
+// isCacheable reports whether path is safe to cache.
 func isCacheable(path string) bool {
 	for _, p := range nonCacheablePatterns {
 		if strings.Contains(path, p) {
@@ -373,6 +421,7 @@ func isCacheable(path string) bool {
 	return false
 }
 
+// resourceType maps a URL path to a cache-TTL bucket name.
 func resourceType(path string) string {
 	switch {
 	case strings.Contains(path, "/providers"):
@@ -406,6 +455,7 @@ func resourceType(path string) string {
 	}
 }
 
+// ttlFor returns the cache TTL for the given URL path.
 func ttlFor(path string) time.Duration {
 	if ttl, ok := cacheTTLs[resourceType(path)]; ok {
 		return ttl
@@ -413,6 +463,7 @@ func ttlFor(path string) time.Duration {
 	return cacheTTLs["default"]
 }
 
+// buildPath appends query parameters to path.
 func buildPath(path string, query url.Values) string {
 	if len(query) == 0 {
 		return path
@@ -420,7 +471,8 @@ func buildPath(path string, query url.Values) string {
 	return path + "?" + query.Encode()
 }
 
-func roundTripJSON(src, dst interface{}) error {
+// roundTripJSON marshals src and unmarshals into dst (used for cache hits).
+func roundTripJSON(src, dst any) error {
 	b, err := json.Marshal(src)
 	if err != nil {
 		return errors.FromDecodeError(err)
@@ -431,9 +483,10 @@ func roundTripJSON(src, dst interface{}) error {
 	return nil
 }
 
-func copyVal(v interface{}) interface{} {
+// copyVal makes a JSON deep-copy of v for storage in the LRU cache.
+func copyVal(v any) any {
 	b, _ := json.Marshal(v)
-	var m interface{}
+	var m any
 	_ = json.Unmarshal(b, &m)
 	return m
 }
