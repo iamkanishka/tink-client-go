@@ -132,7 +132,7 @@ func (s *Service) DelegateAuthorization(ctx context.Context, params types.Delega
 // ValidateToken checks whether the current access token is valid.
 // Returns true if valid, false if expired or invalid.
 func (s *Service) ValidateToken(ctx context.Context) bool {
-	var out interface{}
+	var out any
 	err := s.http.Get(ctx, "/api/v1/user", nil, &out)
 	return err == nil
 }
