@@ -45,8 +45,8 @@ func (s *Service) CreateUser(ctx context.Context, params CreateUserParams) (*typ
 
 // IngestAccounts pushes account data for a user into the Tink platform.
 // externalUserID is your internal identifier for the user.
-func (s *Service) IngestAccounts(ctx context.Context, externalUserID string, params types.IngestAccountsParams) (map[string]interface{}, error) {
-	var out map[string]interface{}
+func (s *Service) IngestAccounts(ctx context.Context, externalUserID string, params types.IngestAccountsParams) (map[string]any, error) {
+	var out map[string]any
 	path := "/connector/users/" + externalUserID + "/accounts"
 	if err := s.http.Post(ctx, path, params, &out); err != nil {
 		return nil, err
@@ -56,8 +56,8 @@ func (s *Service) IngestAccounts(ctx context.Context, externalUserID string, par
 
 // IngestTransactions pushes transaction data for a user into the Tink platform.
 // Use IngestTypeRealTime for live feeds; IngestTypeBatch for historical imports.
-func (s *Service) IngestTransactions(ctx context.Context, externalUserID string, params types.IngestTransactionsParams) (map[string]interface{}, error) {
-	var out map[string]interface{}
+func (s *Service) IngestTransactions(ctx context.Context, externalUserID string, params types.IngestTransactionsParams) (map[string]any, error) {
+	var out map[string]any
 	path := "/connector/users/" + externalUserID + "/transactions"
 	if err := s.http.Post(ctx, path, params, &out); err != nil {
 		return nil, err
