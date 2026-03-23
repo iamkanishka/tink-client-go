@@ -142,20 +142,24 @@ type FinancialInstitution struct {
 }
 
 // Account represents a bank account.
-// Slice field leads (24B), then pointer fields (8B each), then strings (16B each).
+// Pointer fields (8B each) and slice (24B) lead; strings (16B each) follow.
+//
+//nolint:govet // fieldalignment: struct already logically grouped; further optimization hurts readability for negligible gain
 type Account struct {
-	Flags                []string              `json:"flags,omitempty"`
+	Flags []string `json:"flags,omitempty"`
+
 	Balances             *AccountBalances      `json:"balances,omitempty"`
 	Identifiers          *AccountIdentifiers   `json:"identifiers,omitempty"`
 	FinancialInstitution *FinancialInstitution `json:"financialInstitution,omitempty"`
-	ID                   string                `json:"id"`
-	Name                 string                `json:"name"`
-	Type                 string                `json:"type"`
-	Subtype              string                `json:"subtype,omitempty"`
-	Currency             string                `json:"currency,omitempty"`
-	ProviderName         string                `json:"providerName,omitempty"`
-	Ownership            string                `json:"ownership,omitempty"`
-	CredentialsID        string                `json:"credentialsId,omitempty"`
+
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Type          string `json:"type"`
+	Subtype       string `json:"subtype,omitempty"`
+	Currency      string `json:"currency,omitempty"`
+	ProviderName  string `json:"providerName,omitempty"`
+	Ownership     string `json:"ownership,omitempty"`
+	CredentialsID string `json:"credentialsId,omitempty"`
 }
 
 // AccountsResponse is a paginated list of accounts.
@@ -446,8 +450,8 @@ type Budget struct {
 
 // BudgetsResponse is a paginated list of budgets.
 type BudgetsResponse struct {
-	Budgets       []Budget `json:"budgets"`
 	NextPageToken string   `json:"nextPageToken,omitempty"`
+	Budgets       []Budget `json:"budgets"`
 }
 
 // BudgetHistoryEntry holds actual vs target for one budget period.
@@ -527,8 +531,8 @@ type CalendarEvent struct {
 
 // CalendarEventsResponse is a paginated list of calendar events.
 type CalendarEventsResponse struct {
-	Events        []CalendarEvent `json:"events"`
 	NextPageToken string          `json:"nextPageToken,omitempty"`
+	Events        []CalendarEvent `json:"events"`
 }
 
 // CreateCalendarEventParams are parameters for creating a calendar event.
@@ -602,8 +606,8 @@ type AccountCheckReport struct {
 
 // AccountCheckReportsResponse is a paginated list of reports.
 type AccountCheckReportsResponse struct {
-	Reports       []AccountCheckReport `json:"reports"`
 	NextPageToken string               `json:"nextPageToken,omitempty"`
+	Reports       []AccountCheckReport `json:"reports"`
 }
 
 // AccountParty is an account owner or co-owner.
@@ -733,8 +737,8 @@ type ConnectorTransaction struct {
 
 // ConnectorTransactionAccount groups transactions under one account.
 type ConnectorTransactionAccount struct {
-	Transactions []ConnectorTransaction `json:"transactions"`
 	ExternalID   string                 `json:"externalId"`
+	Transactions []ConnectorTransaction `json:"transactions"`
 	Balance      float64                `json:"balance"`
 }
 
@@ -754,8 +758,8 @@ const (
 
 // IngestTransactionsParams are parameters for ingesting transactions.
 type IngestTransactionsParams struct {
-	TransactionAccounts []ConnectorTransactionAccount `json:"transactionAccounts"`
 	Type                IngestType                    `json:"type"`
+	TransactionAccounts []ConnectorTransactionAccount `json:"transactionAccounts"`
 }
 
 // ── Link ──────────────────────────────────────────────────────────────────
@@ -841,8 +845,8 @@ const (
 // WebhookEvent is a parsed Tink webhook event.
 // Maps lead; strings follow.
 type WebhookEvent struct {
-	Data      map[string]interface{} `json:"data"`
-	Raw       map[string]interface{} `json:"-"`
-	Type      string                 `json:"type"`
-	Timestamp string                 `json:"timestamp,omitempty"`
+	Data      map[string]any `json:"data"`
+	Raw       map[string]any `json:"-"`
+	Type      string         `json:"type"`
+	Timestamp string         `json:"timestamp,omitempty"`
 }
