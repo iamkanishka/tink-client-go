@@ -23,9 +23,9 @@ func sign(t *testing.T, secret string, payload []byte) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-func makeBody(t *testing.T, eventType string, data map[string]interface{}) []byte {
+func makeBody(t *testing.T, eventType string, data map[string]any) []byte {
 	t.Helper()
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"type":      eventType,
 		"data":      data,
 		"timestamp": "2024-01-15T12:00:00Z",
@@ -136,7 +136,7 @@ func TestVerifier_RoundTrip(t *testing.T) {
 
 func TestHandler_HandleRequest_ValidEvent(t *testing.T) {
 	h := webhooks.NewHandler(testSecret)
-	body := makeBody(t, "credentials.updated", map[string]interface{}{"userId": "u1"})
+	body := makeBody(t, "credentials.updated", map[string]any{"userId": "u1"})
 	sig := sign(t, testSecret, body)
 
 	var received *types.WebhookEvent
@@ -164,7 +164,7 @@ func TestHandler_HandleRequest_ValidEvent(t *testing.T) {
 
 func TestHandler_HandleRequest_TestWebhookReturnNil(t *testing.T) {
 	h := webhooks.NewHandler(testSecret)
-	body := makeBody(t, "test", map[string]interface{}{})
+	body := makeBody(t, "test", map[string]any{})
 	sig := sign(t, testSecret, body)
 
 	var called bool
@@ -215,7 +215,7 @@ func TestHandler_HandleRequest_InvalidJSON(t *testing.T) {
 
 func TestHandler_HandleRequest_MissingType(t *testing.T) {
 	h := webhooks.NewHandler(testSecret)
-	body, _ := json.Marshal(map[string]interface{}{"data": map[string]interface{}{}})
+	body, _ := json.Marshal(map[string]any{"data": map[string]any{}})
 	sig := sign(t, testSecret, body)
 	var ve *webhooks.VerificationError
 	err := h.HandleRequest(context.Background(), body, sig)
@@ -226,7 +226,7 @@ func TestHandler_HandleRequest_MissingType(t *testing.T) {
 
 func TestHandler_HandleRequest_MissingData(t *testing.T) {
 	h := webhooks.NewHandler(testSecret)
-	body, _ := json.Marshal(map[string]interface{}{"type": "credentials.updated"})
+	body, _ := json.Marshal(map[string]any{"type": "credentials.updated"})
 	sig := sign(t, testSecret, body)
 	var ve *webhooks.VerificationError
 	err := h.HandleRequest(context.Background(), body, sig)
@@ -250,7 +250,7 @@ func TestHandler_On_MultipleHandlersSameType(t *testing.T) {
 		atomic.AddInt32(&count, 1)
 		return nil
 	})
-	body := makeBody(t, "credentials.updated", map[string]interface{}{})
+	body := makeBody(t, "credentials.updated", map[string]any{})
 	sig := sign(t, testSecret, body)
 	if err := h.HandleRequest(context.Background(), body, sig); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -269,7 +269,7 @@ func TestHandler_OnAll_ReceivesAllEventTypes(t *testing.T) {
 	})
 
 	for _, eventType := range []string{"credentials.updated", "credentials.refresh.failed", "provider_consents.created"} {
-		body := makeBody(t, eventType, map[string]interface{}{})
+		body := makeBody(t, eventType, map[string]any{})
 		sig := sign(t, testSecret, body)
 		if err := h.HandleRequest(context.Background(), body, sig); err != nil {
 			t.Fatalf("unexpected error for %s: %v", eventType, err)
@@ -291,7 +291,7 @@ func TestHandler_SpecificAndWildcardBothFire(t *testing.T) {
 		atomic.AddInt32(&wildcard, 1)
 		return nil
 	})
-	body := makeBody(t, "credentials.updated", map[string]interface{}{})
+	body := makeBody(t, "credentials.updated", map[string]any{})
 	sig := sign(t, testSecret, body)
 	if err := h.HandleRequest(context.Background(), body, sig); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -311,7 +311,7 @@ func TestHandler_UnmatchedTypeDoesNotFire(t *testing.T) {
 		called = true
 		return nil
 	})
-	body := makeBody(t, "credentials.updated", map[string]interface{}{})
+	body := makeBody(t, "credentials.updated", map[string]any{})
 	sig := sign(t, testSecret, body)
 	if err := h.HandleRequest(context.Background(), body, sig); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -330,7 +330,7 @@ func TestHandler_Off_StopsDispatching(t *testing.T) {
 	})
 	h.Off(types.WebhookEventCredentialsUpdated)
 
-	body := makeBody(t, "credentials.updated", map[string]interface{}{})
+	body := makeBody(t, "credentials.updated", map[string]any{})
 	sig := sign(t, testSecret, body)
 	if err := h.HandleRequest(context.Background(), body, sig); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -360,7 +360,7 @@ func TestHandler_HandlerError_AllHandlersStillRun(t *testing.T) {
 		secondCalled = true
 		return nil
 	})
-	body := makeBody(t, "credentials.updated", map[string]interface{}{})
+	body := makeBody(t, "credentials.updated", map[string]any{})
 	sig := sign(t, testSecret, body)
 	err := h.HandleRequest(context.Background(), body, sig)
 	if err == nil {
