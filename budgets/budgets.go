@@ -74,7 +74,7 @@ func (s *Service) ListBudgets(ctx context.Context, opts *types.BudgetsListOption
 }
 
 // UpdateBudget patches a budget. Pass only the fields to change.
-func (s *Service) UpdateBudget(ctx context.Context, budgetID string, updates map[string]interface{}) (*types.Budget, error) {
+func (s *Service) UpdateBudget(ctx context.Context, budgetID string, updates map[string]any) (*types.Budget, error) {
 	var out types.Budget
 	if err := s.http.Patch(ctx, fmt.Sprintf("%s/%s", basePath, budgetID), updates, &out); err != nil {
 		return nil, err
