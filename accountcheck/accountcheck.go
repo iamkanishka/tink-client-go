@@ -221,8 +221,8 @@ func (s *Service) GetAccountParties(ctx context.Context, accountID string) (*typ
 
 // ListIdentities returns identity records (name, address, national ID) from connected accounts.
 // Required scope: identities:readonly
-func (s *Service) ListIdentities(ctx context.Context) (map[string]interface{}, error) {
-	var out map[string]interface{}
+func (s *Service) ListIdentities(ctx context.Context) (map[string]any, error) {
+	var out map[string]any
 	if err := s.http.Get(ctx, "/data/v2/identities", nil, &out); err != nil {
 		return nil, err
 	}
