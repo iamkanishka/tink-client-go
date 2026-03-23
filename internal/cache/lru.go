@@ -8,21 +8,20 @@ import (
 )
 
 // entry holds the metadata for one cached item.
-// Fields are ordered to minimise struct padding.
+// expiresAt (24B) leads so the pointer and interface fields pack tightly after it.
 type entry struct {
-	expiresAt time.Time    // 24 bytes
-	elem      *list.Element // 8 bytes
-	value     interface{}  // 16 bytes
-	key       string       // 16 bytes
+	expiresAt time.Time
+	elem      *list.Element
+	value     interface{}
+	key       string
 }
 
 // LRU is a concurrency-safe, size-bounded LRU cache with per-entry TTL expiry.
-// Fields are ordered to minimise struct padding.
 type LRU struct {
-	items   map[string]*entry // 8 bytes
-	order   *list.List        // 8 bytes
-	mu      sync.Mutex        // 8 bytes
-	maxSize int               // 8 bytes
+	items   map[string]*entry
+	order   *list.List
+	mu      sync.Mutex
+	maxSize int
 }
 
 // New creates an LRU cache capped at maxSize entries.
@@ -65,7 +64,7 @@ func (c *LRU) Set(key string, value interface{}, ttl time.Duration) {
 	}
 	if c.order.Len() >= c.maxSize {
 		if back := c.order.Back(); back != nil {
-			c.remove(back.Value.(*entry)) //nolint:errcheck // remove never errors; *entry cast is always valid
+			c.remove(back.Value.(*entry)) //nolint:errcheck // *entry cast is always valid; remove never errors
 		}
 	}
 	ne := &entry{key: key, value: value, expiresAt: time.Now().Add(ttl)}

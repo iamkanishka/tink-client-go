@@ -61,6 +61,10 @@ type Config struct {
 }
 
 // HTTPClient is the production HTTP client. Safe for concurrent use.
+// Field order: map/ptr headers (8B each × 3), Policy struct (40B),
+// strings (16B each × 3), timeout (8B), bool (1B), RWMutex (24B).
+//
+//nolint:govet // fieldalignment: RWMutex must not be copied; cannot be reordered freely
 type HTTPClient struct {
 	defaultHeaders map[string]string
 	lru            *cache.LRU
@@ -69,9 +73,9 @@ type HTTPClient struct {
 	baseURL        string
 	token          string
 	userID         string
-	mu             sync.RWMutex
 	timeout        time.Duration
 	cacheEnabled   bool
+	mu             sync.RWMutex
 }
 
 // New constructs an HTTPClient from Config.

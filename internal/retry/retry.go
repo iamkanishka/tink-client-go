@@ -73,7 +73,7 @@ func CalculateDelay(attempt int, base, maxDelay time.Duration, jitterFactor floa
 		exp = float64(maxDelay)
 	}
 	// math/rand/v2 is automatically seeded; safe for non-cryptographic use.
-	jitter := exp * jitterFactor * (rand.Float64()*2 - 1) //nolint:gosec
+	jitter := exp * jitterFactor * (rand.Float64()*2 - 1) //nolint:gosec // math/rand/v2 jitter is intentionally non-cryptographic
 	if d := time.Duration(exp + jitter); d > 0 {
 		return d
 	}

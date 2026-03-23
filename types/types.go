@@ -142,12 +142,12 @@ type FinancialInstitution struct {
 }
 
 // Account represents a bank account.
-// Pointer fields lead to minimise padding.
+// Slice field leads (24B), then pointer fields (8B each), then strings (16B each).
 type Account struct {
+	Flags                []string              `json:"flags,omitempty"`
 	Balances             *AccountBalances      `json:"balances,omitempty"`
 	Identifiers          *AccountIdentifiers   `json:"identifiers,omitempty"`
 	FinancialInstitution *FinancialInstitution `json:"financialInstitution,omitempty"`
-	Flags                []string              `json:"flags,omitempty"`
 	ID                   string                `json:"id"`
 	Name                 string                `json:"name"`
 	Type                 string                `json:"type"`
@@ -160,8 +160,8 @@ type Account struct {
 
 // AccountsResponse is a paginated list of accounts.
 type AccountsResponse struct {
-	Accounts      []Account `json:"accounts"`
 	NextPageToken string    `json:"nextPageToken,omitempty"`
+	Accounts      []Account `json:"accounts"`
 }
 
 // AccountsListOptions are filter options for listing accounts.
@@ -216,8 +216,8 @@ type Transaction struct {
 
 // TransactionsResponse is a paginated list of transactions.
 type TransactionsResponse struct {
-	Transactions  []Transaction `json:"transactions"`
 	NextPageToken string        `json:"nextPageToken,omitempty"`
+	Transactions  []Transaction `json:"transactions"`
 }
 
 // TransactionsListOptions are filter options for listing transactions.
@@ -234,12 +234,12 @@ type TransactionsListOptions struct {
 
 // Provider is a financial institution supported by Tink.
 type Provider struct {
-	Capabilities []string `json:"capabilities,omitempty"`
 	Name         string   `json:"name"`
 	DisplayName  string   `json:"displayName"`
 	Type         string   `json:"type,omitempty"`
 	Status       string   `json:"status,omitempty"`
 	Market       string   `json:"market"`
+	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 // ProvidersResponse holds a list of providers.
@@ -249,8 +249,8 @@ type ProvidersResponse struct {
 
 // ProvidersListOptions are filter options for listing providers.
 type ProvidersListOptions struct {
-	Capabilities []string
 	Market       string
+	Capabilities []string
 }
 
 // ── Categories ────────────────────────────────────────────────────────────
@@ -289,11 +289,11 @@ type StatisticsResponse struct {
 
 // StatisticsOptions are options for requesting financial statistics.
 type StatisticsOptions struct {
-	AccountIDIn  []string
-	CategoryIDIn []string
 	PeriodGte    string
 	PeriodLte    string
 	Resolution   string
+	AccountIDIn  []string
+	CategoryIDIn []string
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────
@@ -344,8 +344,8 @@ type InvestmentAccount struct {
 
 // InvestmentAccountsResponse is a paginated list of investment accounts.
 type InvestmentAccountsResponse struct {
-	Accounts      []InvestmentAccount `json:"accounts"`
 	NextPageToken string              `json:"nextPageToken,omitempty"`
+	Accounts      []InvestmentAccount `json:"accounts"`
 }
 
 // HoldingValue wraps an Amount for holding price/value fields.
@@ -396,8 +396,8 @@ type LoanAccount struct {
 
 // LoanAccountsResponse is a paginated list of loan accounts.
 type LoanAccountsResponse struct {
-	Accounts      []LoanAccount `json:"accounts"`
 	NextPageToken string        `json:"nextPageToken,omitempty"`
+	Accounts      []LoanAccount `json:"accounts"`
 }
 
 // ── Budgets ───────────────────────────────────────────────────────────────
