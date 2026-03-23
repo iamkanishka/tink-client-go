@@ -164,8 +164,8 @@ func (s *Service) GetRefreshStatus(ctx context.Context, refreshID string) (*type
 // GetAccountBalance returns the current balance for a specific account.
 // Call this after a refresh completes.
 // Required scope: accounts.balances:readonly
-func (s *Service) GetAccountBalance(ctx context.Context, accountID string) (map[string]interface{}, error) {
-	var out map[string]interface{}
+func (s *Service) GetAccountBalance(ctx context.Context, accountID string) (map[string]any, error) {
+	var out map[string]any
 	path := fmt.Sprintf("/data/v2/accounts/%s/balances", accountID)
 	if err := s.http.Get(ctx, path, nil, &out); err != nil {
 		return nil, err
