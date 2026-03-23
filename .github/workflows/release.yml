@@ -28,17 +28,17 @@ on:
   push:
     branches: [main, master]
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+" # e.g. v1.0.0
-      - "v[0-9]+.[0-9]+.[0-9]+-*" # e.g. v1.0.0-rc.1
+      - "v[0-9]+.[0-9]+.[0-9]+"        # e.g. v1.0.0
+      - "v[0-9]+.[0-9]+.[0-9]+-*"      # e.g. v1.0.0-rc.1
   pull_request:
     branches: [main, master]
 
 permissions:
-  contents: write # needed to create GitHub Releases
-  id-token: write # needed for OIDC (future: pkg.go.dev OIDC attestation)
+  contents: write   # needed to create GitHub Releases
+  id-token: write   # needed for OIDC (future: pkg.go.dev OIDC attestation)
 
 env:
-  GO_VERSION: "1.22"
+  GO_VERSION: "1.24"
   MODULE_PATH: "github.com/iamkanishka/tink-client-go"
 
 # ── Jobs ──────────────────────────────────────────────────────────────────────
@@ -51,7 +51,7 @@ jobs:
   #   strategy:
   #     fail-fast: false
   #     matrix:
-  #       go: ["1.22", "1.23"]                      # test on current + latest
+  #       go: ["1.23", "1.24"]                      # test on current + latest
   #       os: [ubuntu-latest, macos-latest]          # test on Linux and macOS
 
   #   steps:
@@ -86,9 +86,9 @@ jobs:
   #     - name: Test (with race detector)
   #       run: go test -race -count=1 -timeout=2m ./...
 
-  #     # Generate a coverage report on Linux/Go 1.22 only (avoid duplicate uploads)
+  #     # Generate a coverage report on Linux/Go 1.24 only (avoid duplicate uploads)
   #     - name: Test (with coverage)
-  #       if: matrix.os == 'ubuntu-latest' && matrix.go == '1.22'
+  #       if: matrix.os == 'ubuntu-latest' && matrix.go == '1.24'
   #       run: |
   #         go test -race -count=1 -timeout=2m \
   #           -coverprofile=coverage.out \
@@ -97,7 +97,7 @@ jobs:
   #         go tool cover -func=coverage.out | tail -1
 
   #     - name: Upload coverage report
-  #       if: matrix.os == 'ubuntu-latest' && matrix.go == '1.22'
+  #       if: matrix.os == 'ubuntu-latest' && matrix.go == '1.24'
   #       uses: actions/upload-artifact@v4
   #       with:
   #         name: coverage-report
@@ -152,7 +152,7 @@ jobs:
   release:
     name: Release
     # needs: [test, lint, build-example]
-    needs: [lint, build-example]
+    needs: [ lint, build-example]
 
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
@@ -195,9 +195,8 @@ jobs:
           cat release-notes.md
 
       # Final test run on the exact code being released
-      # Temporarily disabled for v1.0.0
-      # - name: Final test run
-      #   run: go test -race -count=1 -timeout=2m ./...
+      - name: Final test run
+        run: go test -race -count=1 -timeout=2m ./...
 
       # Ensure go.sum is tidy (no extraneous dependencies)
       - name: Verify go.sum is tidy
@@ -215,8 +214,8 @@ jobs:
           name: "${{ env.VERSION }}"
           body_path: release-notes.md
           draft: false
-          prerelease: ${{ contains(env.VERSION, '-') }} # rc/beta/alpha tags are pre-releases
-          generate_release_notes: false # we use CHANGELOG.md instead
+          prerelease: ${{ contains(env.VERSION, '-') }}  # rc/beta/alpha tags are pre-releases
+          generate_release_notes: false                   # we use CHANGELOG.md instead
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
