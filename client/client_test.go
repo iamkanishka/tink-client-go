@@ -3,6 +3,7 @@ package client_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,7 +19,7 @@ import (
 
 // mockServer returns an httptest.Server that responds to all requests
 // with the given status code and JSON body.
-func mockServer(t *testing.T, status int, body interface{}) *httptest.Server {
+func mockServer(t *testing.T, status int, body any) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -102,9 +103,10 @@ func TestNew_AllNamespacesPresent(t *testing.T) {
 	c := newTestClient(t, srv)
 
 	// Verify all 24 service namespaces are non-nil
+	//nolint:govet // fieldalignment not relevant for small test struct; readability preferred
 	checks := []struct {
 		name string
-		val  interface{}
+		val  any
 	}{
 		{"Auth", c.Auth},
 		{"Accounts", c.Accounts},
@@ -168,7 +170,7 @@ func TestInfo_HasToken(t *testing.T) {
 }
 
 func TestAuthenticate_SetsToken(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
+	srv := mockServer(t, http.StatusOK, map[string]any{
 		"access_token": "acquired-token",
 		"token_type":   "Bearer",
 		"expires_in":   3600,
@@ -203,13 +205,7 @@ func TestAuthenticate_ErrorWithoutCredentials(t *testing.T) {
 		t.Fatal("Authenticate should fail without credentials")
 	}
 	var te *tinkErrors.TinkError
-	if isTE := func() bool {
-		if e, ok := err.(*tinkErrors.TinkError); ok {
-			te = e
-			return true
-		}
-		return false
-	}(); !isTE {
+	if !errors.As(err, &te) {
 		t.Fatalf("expected *tinkErrors.TinkError, got %T", err)
 	}
 	if te.Type != types.ErrorTypeValidation {
@@ -220,8 +216,8 @@ func TestAuthenticate_ErrorWithoutCredentials(t *testing.T) {
 // ── Accounts API ──────────────────────────────────────────────────────────
 
 func TestAccounts_ListAccounts_Success(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
-		"accounts": []map[string]interface{}{
+	srv := mockServer(t, http.StatusOK, map[string]any{
+		"accounts": []map[string]any{
 			{"id": "acc_1", "name": "Checking", "type": "CHECKING"},
 			{"id": "acc_2", "name": "Savings", "type": "SAVINGS"},
 		},
@@ -249,7 +245,7 @@ func TestAccounts_ListAccounts_WithFilter(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedURL = r.URL.String()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"accounts": []interface{}{}})
+		json.NewEncoder(w).Encode(map[string]any{"accounts": []any{}})
 	}))
 	defer srv.Close()
 	c := newTestClient(t, srv)
@@ -264,7 +260,7 @@ func TestAccounts_ListAccounts_WithFilter(t *testing.T) {
 }
 
 func TestAccounts_GetAccount(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
+	srv := mockServer(t, http.StatusOK, map[string]any{
 		"id": "acc_123", "name": "Main Account", "type": "CHECKING",
 	})
 	defer srv.Close()
@@ -280,9 +276,9 @@ func TestAccounts_GetAccount(t *testing.T) {
 }
 
 func TestAccounts_GetBalances(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
-		"booked":    map[string]interface{}{"amount": map[string]interface{}{"value": "1500.00", "currencyCode": "GBP"}},
-		"available": map[string]interface{}{"amount": map[string]interface{}{"value": "1200.00", "currencyCode": "GBP"}},
+	srv := mockServer(t, http.StatusOK, map[string]any{
+		"booked":    map[string]any{"amount": map[string]any{"value": "1500.00", "currencyCode": "GBP"}},
+		"available": map[string]any{"amount": map[string]any{"value": "1200.00", "currencyCode": "GBP"}},
 	})
 	defer srv.Close()
 	c := newTestClient(t, srv)
@@ -302,9 +298,9 @@ func TestAccounts_GetBalances(t *testing.T) {
 // ── Transactions API ──────────────────────────────────────────────────────
 
 func TestTransactions_ListTransactions(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
-		"transactions": []map[string]interface{}{
-			{"id": "txn_1", "status": "BOOKED", "amount": map[string]interface{}{"value": "-15.00", "currencyCode": "GBP"}},
+	srv := mockServer(t, http.StatusOK, map[string]any{
+		"transactions": []map[string]any{
+			{"id": "txn_1", "status": "BOOKED", "amount": map[string]any{"value": "-15.00", "currencyCode": "GBP"}},
 		},
 	})
 	defer srv.Close()
@@ -330,7 +326,7 @@ func TestTransactions_QueryParamsForwarded(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedURL = r.URL.String()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"transactions": []interface{}{}})
+		json.NewEncoder(w).Encode(map[string]any{"transactions": []any{}})
 	}))
 	defer srv.Close()
 	c := newTestClient(t, srv)
@@ -350,8 +346,8 @@ func TestTransactions_QueryParamsForwarded(t *testing.T) {
 // ── Providers API ─────────────────────────────────────────────────────────
 
 func TestProviders_ListProviders(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
-		"providers": []map[string]interface{}{
+	srv := mockServer(t, http.StatusOK, map[string]any{
+		"providers": []map[string]any{
 			{"name": "uk-ob-barclays", "displayName": "Barclays", "status": "ENABLED", "market": "GB"},
 			{"name": "uk-ob-hsbc", "displayName": "HSBC", "status": "ENABLED", "market": "GB"},
 		},
@@ -372,7 +368,7 @@ func TestProviders_ListProviders(t *testing.T) {
 }
 
 func TestProviders_GetProvider(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
+	srv := mockServer(t, http.StatusOK, map[string]any{
 		"name": "uk-ob-barclays", "displayName": "Barclays", "status": "ENABLED", "market": "GB",
 	})
 	defer srv.Close()
@@ -390,8 +386,8 @@ func TestProviders_GetProvider(t *testing.T) {
 // ── Categories API ────────────────────────────────────────────────────────
 
 func TestCategories_ListCategories(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
-		"categories": []map[string]interface{}{
+	srv := mockServer(t, http.StatusOK, map[string]any{
+		"categories": []map[string]any{
 			{"id": "cat_1", "code": "EXPENSES:FOOD", "displayName": "Food"},
 		},
 	})
@@ -412,7 +408,7 @@ func TestCategories_DefaultLocale(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedURL = r.URL.String()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"categories": []interface{}{}})
+		json.NewEncoder(w).Encode(map[string]any{"categories": []any{}})
 	}))
 	defer srv.Close()
 	c := newTestClient(t, srv)
@@ -426,10 +422,10 @@ func TestCategories_DefaultLocale(t *testing.T) {
 // ── Statistics API ────────────────────────────────────────────────────────
 
 func TestStatistics_GetStatistics(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
-		"periods": []map[string]interface{}{
-			{"period": "2024-01", "income": map[string]interface{}{"amount": map[string]interface{}{"value": "3000.00", "currencyCode": "GBP"}}},
-			{"period": "2024-02", "income": map[string]interface{}{"amount": map[string]interface{}{"value": "3000.00", "currencyCode": "GBP"}}},
+	srv := mockServer(t, http.StatusOK, map[string]any{
+		"periods": []map[string]any{
+			{"period": "2024-01", "income": map[string]any{"amount": map[string]any{"value": "3000.00", "currencyCode": "GBP"}}},
+			{"period": "2024-02", "income": map[string]any{"amount": map[string]any{"value": "3000.00", "currencyCode": "GBP"}}},
 		},
 	})
 	defer srv.Close()
@@ -451,7 +447,7 @@ func TestStatistics_DefaultResolution(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedURL = r.URL.String()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"periods": []interface{}{}})
+		json.NewEncoder(w).Encode(map[string]any{"periods": []any{}})
 	}))
 	defer srv.Close()
 	c := newTestClient(t, srv)
@@ -467,7 +463,7 @@ func TestStatistics_DefaultResolution(t *testing.T) {
 // ── Users API ─────────────────────────────────────────────────────────────
 
 func TestUsers_CreateUser(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
+	srv := mockServer(t, http.StatusOK, map[string]any{
 		"userId": "u_new_123", "externalUserId": "ext_001",
 	})
 	defer srv.Close()
@@ -485,8 +481,8 @@ func TestUsers_CreateUser(t *testing.T) {
 }
 
 func TestUsers_ListCredentials(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
-		"credentials": []map[string]interface{}{
+	srv := mockServer(t, http.StatusOK, map[string]any{
+		"credentials": []map[string]any{
 			{"id": "cred_1", "providerName": "uk-ob-barclays", "status": "UPDATED"},
 		},
 	})
@@ -508,8 +504,8 @@ func TestUsers_ListCredentials(t *testing.T) {
 // ── Investments API ───────────────────────────────────────────────────────
 
 func TestInvestments_ListAccounts(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
-		"accounts": []map[string]interface{}{
+	srv := mockServer(t, http.StatusOK, map[string]any{
+		"accounts": []map[string]any{
 			{"id": "inv_1", "name": "ISA", "type": "ISA"},
 		},
 	})
@@ -526,9 +522,9 @@ func TestInvestments_ListAccounts(t *testing.T) {
 }
 
 func TestInvestments_GetHoldings(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
-		"holdings": []map[string]interface{}{
-			{"id": "h_1", "instrument": map[string]interface{}{"type": "STOCK", "symbol": "AAPL"}},
+	srv := mockServer(t, http.StatusOK, map[string]any{
+		"holdings": []map[string]any{
+			{"id": "h_1", "instrument": map[string]any{"type": "STOCK", "symbol": "AAPL"}},
 		},
 	})
 	defer srv.Close()
@@ -546,11 +542,11 @@ func TestInvestments_GetHoldings(t *testing.T) {
 // ── Balance Check API ─────────────────────────────────────────────────────
 
 func TestBalanceCheck_RefreshBalance(t *testing.T) {
-	var capturedBody map[string]interface{}
+	var capturedBody map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewDecoder(r.Body).Decode(&capturedBody)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"balanceRefreshId": "refresh_001",
 			"status":           "INITIATED",
 		})
@@ -571,7 +567,7 @@ func TestBalanceCheck_RefreshBalance(t *testing.T) {
 }
 
 func TestBalanceCheck_GetRefreshStatus(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
+	srv := mockServer(t, http.StatusOK, map[string]any{
 		"balanceRefreshId": "refresh_001",
 		"status":           "COMPLETED",
 	})
@@ -629,7 +625,7 @@ func TestBalanceCheck_BuildConsentUpdateLink(t *testing.T) {
 // ── Error propagation ─────────────────────────────────────────────────────
 
 func TestError_401_ReturnsAuthError(t *testing.T) {
-	srv := mockServer(t, http.StatusUnauthorized, map[string]interface{}{
+	srv := mockServer(t, http.StatusUnauthorized, map[string]any{
 		"errorMessage": "Invalid token",
 		"errorCode":    "TOKEN_INVALID",
 	})
@@ -640,8 +636,8 @@ func TestError_401_ReturnsAuthError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for 401 response")
 	}
-	te, ok := err.(*tinkErrors.TinkError)
-	if !ok {
+	var te *tinkErrors.TinkError
+	if !errors.As(err, &te) {
 		t.Fatalf("expected *TinkError, got %T", err)
 	}
 	if te.Type != types.ErrorTypeAuthentication {
@@ -656,13 +652,13 @@ func TestError_401_ReturnsAuthError(t *testing.T) {
 }
 
 func TestError_429_ReturnsRateLimitError(t *testing.T) {
-	srv := mockServer(t, http.StatusTooManyRequests, map[string]interface{}{"errorMessage": "Rate limit exceeded"})
+	srv := mockServer(t, http.StatusTooManyRequests, map[string]any{"errorMessage": "Rate limit exceeded"})
 	defer srv.Close()
 	c := newTestClient(t, srv)
 
 	_, err := c.Providers.ListProviders(context.Background(), nil)
-	te, ok := err.(*tinkErrors.TinkError)
-	if !ok {
+	var te *tinkErrors.TinkError
+	if !errors.As(err, &te) {
 		t.Fatalf("expected *TinkError, got %T", err)
 	}
 	if te.Type != types.ErrorTypeRateLimit {
@@ -674,13 +670,13 @@ func TestError_429_ReturnsRateLimitError(t *testing.T) {
 }
 
 func TestError_500_ReturnsAPIError(t *testing.T) {
-	srv := mockServer(t, http.StatusInternalServerError, map[string]interface{}{"errorMessage": "Internal error"})
+	srv := mockServer(t, http.StatusInternalServerError, map[string]any{"errorMessage": "Internal error"})
 	defer srv.Close()
 	c := newTestClient(t, srv)
 
 	_, err := c.Accounts.ListAccounts(context.Background(), nil)
-	te, ok := err.(*tinkErrors.TinkError)
-	if !ok {
+	var te *tinkErrors.TinkError
+	if !errors.As(err, &te) {
 		t.Fatalf("expected *TinkError, got %T", err)
 	}
 	if te.Type != types.ErrorTypeAPI {
@@ -692,13 +688,13 @@ func TestError_500_ReturnsAPIError(t *testing.T) {
 }
 
 func TestError_400_ValidationError(t *testing.T) {
-	srv := mockServer(t, http.StatusBadRequest, map[string]interface{}{"errorMessage": "Invalid params"})
+	srv := mockServer(t, http.StatusBadRequest, map[string]any{"errorMessage": "Invalid params"})
 	defer srv.Close()
 	c := newTestClient(t, srv)
 
 	_, err := c.Accounts.ListAccounts(context.Background(), nil)
-	te, ok := err.(*tinkErrors.TinkError)
-	if !ok {
+	var te *tinkErrors.TinkError
+	if !errors.As(err, &te) {
 		t.Fatalf("expected *TinkError, got %T", err)
 	}
 	if te.Retryable() {
@@ -713,7 +709,7 @@ func TestAuthorizationHeader(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedAuth = r.Header.Get("Authorization")
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"accounts": []interface{}{}})
+		json.NewEncoder(w).Encode(map[string]any{"accounts": []any{}})
 	}))
 	defer srv.Close()
 	c := newTestClient(t, srv) // sets token = "test-bearer-token"
@@ -729,7 +725,7 @@ func TestUserAgentHeader(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedUA = r.Header.Get("User-Agent")
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"accounts": []interface{}{}})
+		json.NewEncoder(w).Encode(map[string]any{"accounts": []any{}})
 	}))
 	defer srv.Close()
 	c := newTestClient(t, srv)
@@ -745,7 +741,7 @@ func TestCustomHeader(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedHeader = r.Header.Get("X-Request-ID")
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"accounts": []interface{}{}})
+		json.NewEncoder(w).Encode(map[string]any{"accounts": []any{}})
 	}))
 	defer srv.Close()
 	c, _ := client.NewWithOptions(
@@ -765,7 +761,7 @@ func TestCustomHeader(t *testing.T) {
 // ── Cache management ──────────────────────────────────────────────────────
 
 func TestClearCache_DoesNotPanic(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{"accounts": []interface{}{}})
+	srv := mockServer(t, http.StatusOK, map[string]any{"accounts": []any{}})
 	defer srv.Close()
 	c, _ := client.NewWithOptions(
 		client.WithBaseURL(srv.URL),
@@ -787,7 +783,7 @@ func TestCaching_SecondRequestHitsCache(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"providers": []interface{}{}})
+		json.NewEncoder(w).Encode(map[string]any{"providers": []any{}})
 	}))
 	defer srv.Close()
 
@@ -879,7 +875,7 @@ func TestIsExpired_AlreadyExpired(t *testing.T) {
 // ── Connectivity ──────────────────────────────────────────────────────────
 
 func TestConnectivity_CheckAPIHealth_Healthy(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{"providers": []interface{}{}})
+	srv := mockServer(t, http.StatusOK, map[string]any{"providers": []any{}})
 	defer srv.Close()
 	c := newTestClient(t, srv)
 
@@ -889,7 +885,7 @@ func TestConnectivity_CheckAPIHealth_Healthy(t *testing.T) {
 }
 
 func TestConnectivity_CheckAPIHealth_Unhealthy(t *testing.T) {
-	srv := mockServer(t, http.StatusServiceUnavailable, map[string]interface{}{"errorMessage": "Service down"})
+	srv := mockServer(t, http.StatusServiceUnavailable, map[string]any{"errorMessage": "Service down"})
 	defer srv.Close()
 	c, _ := client.NewWithOptions(
 		client.WithBaseURL(srv.URL),
@@ -904,7 +900,7 @@ func TestConnectivity_CheckAPIHealth_Unhealthy(t *testing.T) {
 }
 
 func TestConnectivity_CheckProviderStatus(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
+	srv := mockServer(t, http.StatusOK, map[string]any{
 		"name": "uk-ob-barclays", "status": "ENABLED", "market": "GB",
 	})
 	defer srv.Close()
@@ -920,7 +916,7 @@ func TestConnectivity_CheckProviderStatus(t *testing.T) {
 }
 
 func TestConnectivity_CheckProviderStatus_MarketMismatch(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
+	srv := mockServer(t, http.StatusOK, map[string]any{
 		"name": "se-ob-swedbank", "status": "ENABLED", "market": "SE",
 	})
 	defer srv.Close()
@@ -933,8 +929,8 @@ func TestConnectivity_CheckProviderStatus_MarketMismatch(t *testing.T) {
 }
 
 func TestConnectivity_CheckCredentialConnectivity(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{
-		"credentials": []map[string]interface{}{
+	srv := mockServer(t, http.StatusOK, map[string]any{
+		"credentials": []map[string]any{
 			{"id": "c1", "providerName": "bank1", "status": "UPDATED"},
 			{"id": "c2", "providerName": "bank2", "status": "SESSION_EXPIRED", "statusPayload": "Reconnect needed"},
 		},
@@ -963,7 +959,7 @@ func TestConnectivity_CheckCredentialConnectivity(t *testing.T) {
 // ── Reports ───────────────────────────────────────────────────────────────
 
 func TestIncomeCheck_GetReport(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{"id": "rep_1", "created": "2024-01-01"})
+	srv := mockServer(t, http.StatusOK, map[string]any{"id": "rep_1", "created": "2024-01-01"})
 	defer srv.Close()
 	c := newTestClient(t, srv)
 
@@ -977,7 +973,7 @@ func TestIncomeCheck_GetReport(t *testing.T) {
 }
 
 func TestExpenseCheck_GetReport(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{"id": "rep_2"})
+	srv := mockServer(t, http.StatusOK, map[string]any{"id": "rep_2"})
 	defer srv.Close()
 	c := newTestClient(t, srv)
 
@@ -991,7 +987,7 @@ func TestExpenseCheck_GetReport(t *testing.T) {
 }
 
 func TestBusinessAccountCheck_GetReport(t *testing.T) {
-	srv := mockServer(t, http.StatusOK, map[string]interface{}{"id": "biz_rep_1", "status": "COMPLETED"})
+	srv := mockServer(t, http.StatusOK, map[string]any{"id": "biz_rep_1", "status": "COMPLETED"})
 	defer srv.Close()
 	c := newTestClient(t, srv)
 
