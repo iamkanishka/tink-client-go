@@ -159,7 +159,7 @@ func (h *Handler) HandleRequest(ctx context.Context, body []byte, signature stri
 	}
 
 	// 2. Parse JSON payload
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return &VerificationError{Code: "invalid_json", Message: "webhook body is not valid JSON"}
 	}
@@ -178,9 +178,9 @@ func (h *Handler) HandleRequest(ctx context.Context, body []byte, signature stri
 	}
 
 	// 5. Build typed event
-	data, _ := raw["data"].(map[string]interface{})
+	data, _ := raw["data"].(map[string]any)
 	if data == nil {
-		data = make(map[string]interface{})
+		data = make(map[string]any)
 	}
 	ts, _ := raw["timestamp"].(string)
 	event := &types.WebhookEvent{
