@@ -49,7 +49,7 @@ func (s *Service) GetEvent(ctx context.Context, eventID string) (*types.Calendar
 }
 
 // UpdateEvent patches a calendar event. Pass only fields to change.
-func (s *Service) UpdateEvent(ctx context.Context, eventID string, updates map[string]interface{}) (*types.CalendarEvent, error) {
+func (s *Service) UpdateEvent(ctx context.Context, eventID string, updates map[string]any) (*types.CalendarEvent, error) {
 	var out types.CalendarEvent
 	if err := s.http.Patch(ctx, fmt.Sprintf("%s/%s", eventsBase, eventID), updates, &out); err != nil {
 		return nil, err
@@ -79,13 +79,13 @@ func (s *Service) DeleteEvent(ctx context.Context, eventID string, opt types.Rec
 }
 
 // GetSummaries returns summarised calendar data at a given resolution.
-func (s *Service) GetSummaries(ctx context.Context, opts types.CalendarSummariesOptions) (map[string]interface{}, error) {
+func (s *Service) GetSummaries(ctx context.Context, opts types.CalendarSummariesOptions) (map[string]any, error) {
 	q := url.Values{
 		"periodGte": {opts.PeriodGte},
 		"periodLte": {opts.PeriodLte},
 	}
 	path := fmt.Sprintf("%s/%s", summariesBase, opts.Resolution)
-	var out map[string]interface{}
+	var out map[string]any
 	if err := s.http.Get(ctx, path, q, &out); err != nil {
 		return nil, err
 	}
@@ -93,8 +93,8 @@ func (s *Service) GetSummaries(ctx context.Context, opts types.CalendarSummaries
 }
 
 // AddAttachment attaches metadata (e.g. an invoice URL) to a calendar event.
-func (s *Service) AddAttachment(ctx context.Context, eventID string, params map[string]interface{}) (map[string]interface{}, error) {
-	var out map[string]interface{}
+func (s *Service) AddAttachment(ctx context.Context, eventID string, params map[string]any) (map[string]any, error) {
+	var out map[string]any
 	path := fmt.Sprintf("%s/%s/attachments", eventsBase, eventID)
 	if err := s.http.Post(ctx, path, params, &out); err != nil {
 		return nil, err
@@ -108,8 +108,8 @@ func (s *Service) DeleteAttachment(ctx context.Context, eventID, attachmentID st
 }
 
 // CreateRecurringGroup creates a recurring event group for an existing event.
-func (s *Service) CreateRecurringGroup(ctx context.Context, eventID string, params map[string]interface{}) (map[string]interface{}, error) {
-	var out map[string]interface{}
+func (s *Service) CreateRecurringGroup(ctx context.Context, eventID string, params map[string]any) (map[string]any, error) {
+	var out map[string]any
 	if err := s.http.Post(ctx, fmt.Sprintf("%s/%s/recurring-group", eventsBase, eventID), params, &out); err != nil {
 		return nil, err
 	}
@@ -117,8 +117,8 @@ func (s *Service) CreateRecurringGroup(ctx context.Context, eventID string, para
 }
 
 // CreateReconciliation links a calendar event to an actual transaction.
-func (s *Service) CreateReconciliation(ctx context.Context, eventID string, params map[string]interface{}) (map[string]interface{}, error) {
-	var out map[string]interface{}
+func (s *Service) CreateReconciliation(ctx context.Context, eventID string, params map[string]any) (map[string]any, error) {
+	var out map[string]any
 	if err := s.http.Post(ctx, fmt.Sprintf("%s/%s/reconciliations", eventsBase, eventID), params, &out); err != nil {
 		return nil, err
 	}
@@ -126,8 +126,8 @@ func (s *Service) CreateReconciliation(ctx context.Context, eventID string, para
 }
 
 // GetReconciliationDetails returns reconciliation details for an event.
-func (s *Service) GetReconciliationDetails(ctx context.Context, eventID string) (map[string]interface{}, error) {
-	var out map[string]interface{}
+func (s *Service) GetReconciliationDetails(ctx context.Context, eventID string) (map[string]any, error) {
+	var out map[string]any
 	if err := s.http.Get(ctx, fmt.Sprintf("%s/%s/reconciliations/details", eventsBase, eventID), nil, &out); err != nil {
 		return nil, err
 	}
@@ -135,8 +135,8 @@ func (s *Service) GetReconciliationDetails(ctx context.Context, eventID string) 
 }
 
 // GetReconciliationSuggestions returns AI-suggested transactions to reconcile.
-func (s *Service) GetReconciliationSuggestions(ctx context.Context, eventID string) (map[string]interface{}, error) {
-	var out map[string]interface{}
+func (s *Service) GetReconciliationSuggestions(ctx context.Context, eventID string) (map[string]any, error) {
+	var out map[string]any
 	if err := s.http.Get(ctx, fmt.Sprintf("%s/%s/reconciliations/suggestions", eventsBase, eventID), nil, &out); err != nil {
 		return nil, err
 	}
