@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 env:
-  GO_VERSION: "1.24"
+  GO_VERSION: "1.25.8"
 
 jobs:
   # ── Lint ─────────────────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: ["1.23", "1.24"]
+        go: ["1.25.6", "1.25.8"]
 
     steps:
       - uses: actions/checkout@v4
@@ -90,11 +90,11 @@ jobs:
       - name: go mod verify
         run: go mod verify
 
-      # - name: Test with race detector
-      #   run: go test -race -count=1 -timeout=3m ./...
+      - name: Test with race detector
+        run: go test -race -count=1 -timeout=3m ./...
 
-      - name: Test with coverage (Go 1.24 only)
-        if: matrix.go == '1.24'
+      - name: Test with coverage (Go 1.25.8 only)
+        if: matrix.go == '1.25.8'
         run: |
           go test -race -count=1 -timeout=3m \
             -coverprofile=coverage.out \
@@ -110,7 +110,7 @@ jobs:
           echo "COVERAGE=${TOTAL}" >> "$GITHUB_ENV"
 
       - name: Upload coverage to GitHub Actions
-        if: matrix.go == '1.24'
+        if: matrix.go == '1.25.8'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-go${{ matrix.go }}
