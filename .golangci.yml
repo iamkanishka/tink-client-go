@@ -3,7 +3,7 @@
 
 run:
   timeout: 5m
-  go: "1.22"
+  go: "1.25.8"
   tests: true
 
 output:
@@ -48,6 +48,7 @@ linters-settings:
     enable-all: true
     disable:
       - shadow       # too many false positives in idiomatic Go
+      - fieldalignment
 
   errcheck:
     check-type-assertions: true
@@ -122,5 +123,5 @@ issues:
         - revive
       text: "exported"
 
-  max-issues-per-linter: 50
-  max-same-issues: 5
+  max-issues-per-linter: 0
+  max-same-issues: 0
