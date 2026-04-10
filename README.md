@@ -24,7 +24,7 @@
 go get github.com/iamkanishka/tink-client-go
 ```
 
-Requires **Go ≥ 1.22**.
+Requires **Go ≥ 1.25**.
 
 ---
 
