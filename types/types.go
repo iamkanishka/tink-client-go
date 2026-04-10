@@ -27,15 +27,24 @@ type Config struct {
 type ErrorType string
 
 const (
-	ErrorTypeAPI            ErrorType = "api_error"
+	// ErrorTypeAPI is a general API error (4xx other than 401/400/429, or 5xx).
+	ErrorTypeAPI ErrorType = "api_error"
+	// ErrorTypeAuthentication indicates an invalid or expired bearer token (HTTP 401).
 	ErrorTypeAuthentication ErrorType = "authentication_error"
-	ErrorTypeRateLimit      ErrorType = "rate_limit_error"
-	ErrorTypeValidation     ErrorType = "validation_error"
-	ErrorTypeNetwork        ErrorType = "network_error"
-	ErrorTypeTimeout        ErrorType = "timeout"
-	ErrorTypeDecode         ErrorType = "decode_error"
+	// ErrorTypeRateLimit indicates the client has exceeded the API rate limit (HTTP 429).
+	ErrorTypeRateLimit ErrorType = "rate_limit_error"
+	// ErrorTypeValidation indicates a malformed or invalid request (HTTP 400).
+	ErrorTypeValidation ErrorType = "validation_error"
+	// ErrorTypeNetwork indicates a transport-level failure (DNS, TCP, TLS).
+	ErrorTypeNetwork ErrorType = "network_error"
+	// ErrorTypeTimeout indicates the request exceeded its deadline.
+	ErrorTypeTimeout ErrorType = "timeout"
+	// ErrorTypeDecode indicates a failure to parse the API response as JSON.
+	ErrorTypeDecode ErrorType = "decode_error"
+	// ErrorTypeMarketMismatch indicates the provider does not serve the requested market.
 	ErrorTypeMarketMismatch ErrorType = "market_mismatch"
-	ErrorTypeUnknown        ErrorType = "unknown"
+	// ErrorTypeUnknown is a catch-all for errors that cannot be classified.
+	ErrorTypeUnknown ErrorType = "unknown"
 )
 
 // ── Auth ──────────────────────────────────────────────────────────────────
@@ -143,8 +152,6 @@ type FinancialInstitution struct {
 
 // Account represents a bank account.
 // Pointer fields (8B each) and slice (24B) lead; strings (16B each) follow.
-//
-//nolint:govet // fieldalignment: struct already logically grouped; further optimization hurts readability for negligible gain
 type Account struct {
 	Flags []string `json:"flags,omitempty"`
 
@@ -416,11 +423,15 @@ const (
 	// BudgetTypeIncome tracks income.
 	BudgetTypeIncome BudgetType = "INCOME"
 	// BudgetTypeExpense tracks expenses.
-	BudgetTypeExpense        BudgetType      = "EXPENSE"
-	BudgetFrequencyOneOff    BudgetFrequency = "ONE_OFF"
-	BudgetFrequencyMonthly   BudgetFrequency = "MONTHLY"
+	BudgetTypeExpense BudgetType = "EXPENSE"
+	// BudgetFrequencyOneOff creates a budget for a single period.
+	BudgetFrequencyOneOff BudgetFrequency = "ONE_OFF"
+	// BudgetFrequencyMonthly creates a recurring monthly budget.
+	BudgetFrequencyMonthly BudgetFrequency = "MONTHLY"
+	// BudgetFrequencyQuarterly creates a recurring quarterly budget.
 	BudgetFrequencyQuarterly BudgetFrequency = "QUARTERLY"
-	BudgetFrequencyYearly    BudgetFrequency = "YEARLY"
+	// BudgetFrequencyYearly creates a recurring yearly budget.
+	BudgetFrequencyYearly BudgetFrequency = "YEARLY"
 )
 
 // BudgetRecurrence defines how a budget recurs.
@@ -478,11 +489,14 @@ type BudgetsListOptions struct {
 type CashFlowResolution string
 
 const (
-	// CashFlowResolutionDaily aggregates daily.
-	CashFlowResolutionDaily   CashFlowResolution = "DAILY"
-	CashFlowResolutionWeekly  CashFlowResolution = "WEEKLY"
+	// CashFlowResolutionDaily aggregates per calendar day.
+	CashFlowResolutionDaily CashFlowResolution = "DAILY"
+	// CashFlowResolutionWeekly aggregates per ISO calendar week.
+	CashFlowResolutionWeekly CashFlowResolution = "WEEKLY"
+	// CashFlowResolutionMonthly aggregates per calendar month.
 	CashFlowResolutionMonthly CashFlowResolution = "MONTHLY"
-	CashFlowResolutionYearly  CashFlowResolution = "YEARLY"
+	// CashFlowResolutionYearly aggregates per calendar year.
+	CashFlowResolutionYearly CashFlowResolution = "YEARLY"
 )
 
 // cashFlowAmount wraps an Amount for cash-flow period fields.
@@ -553,10 +567,12 @@ type CalendarSummariesOptions struct {
 type RecurringOption string
 
 const (
-	// RecurringSingle affects only the selected occurrence.
-	RecurringSingle           RecurringOption = "SINGLE"
+	// RecurringSingle deletes only the selected occurrence.
+	RecurringSingle RecurringOption = "SINGLE"
+	// RecurringThisAndFollowing deletes the selected occurrence and all future ones.
 	RecurringThisAndFollowing RecurringOption = "THIS_AND_FOLLOWING"
-	RecurringAll              RecurringOption = "ALL"
+	// RecurringAll deletes all occurrences of the recurring event.
+	RecurringAll RecurringOption = "ALL"
 )
 
 // ── Account Check ─────────────────────────────────────────────────────────
@@ -650,11 +666,14 @@ type BalanceRefreshResponse struct {
 type BalanceRefreshStatus string
 
 const (
-	// BalanceRefreshInitiated means the refresh has been accepted.
-	BalanceRefreshInitiated  BalanceRefreshStatus = "INITIATED"
+	// BalanceRefreshInitiated means the refresh request was accepted.
+	BalanceRefreshInitiated BalanceRefreshStatus = "INITIATED"
+	// BalanceRefreshInProgress means the balance is being fetched from the bank.
 	BalanceRefreshInProgress BalanceRefreshStatus = "IN_PROGRESS"
-	BalanceRefreshCompleted  BalanceRefreshStatus = "COMPLETED"
-	BalanceRefreshFailed     BalanceRefreshStatus = "FAILED"
+	// BalanceRefreshCompleted means the balance has been successfully refreshed.
+	BalanceRefreshCompleted BalanceRefreshStatus = "COMPLETED"
+	// BalanceRefreshFailed means the refresh attempt failed; retry or check the credential.
+	BalanceRefreshFailed BalanceRefreshStatus = "FAILED"
 )
 
 // BalanceRefreshStatusResponse holds the full balance refresh status.
@@ -751,9 +770,10 @@ type IngestAccountsParams struct {
 type IngestType string
 
 const (
-	// IngestTypeRealTime is used for live transaction feeds.
+	// IngestTypeRealTime is used for live, real-time transaction feeds.
 	IngestTypeRealTime IngestType = "REAL_TIME"
-	IngestTypeBatch    IngestType = "BATCH"
+	// IngestTypeBatch is used for historical bulk imports.
+	IngestTypeBatch IngestType = "BATCH"
 )
 
 // IngestTransactionsParams are parameters for ingesting transactions.
@@ -768,12 +788,17 @@ type IngestTransactionsParams struct {
 type LinkProduct string
 
 const (
-	// LinkProductTransactions connects bank accounts for transaction access.
+	// LinkProductTransactions connects bank accounts for transaction data access.
 	LinkProductTransactions LinkProduct = "transactions"
+	// LinkProductAccountCheck initiates an account ownership verification flow.
 	LinkProductAccountCheck LinkProduct = "account_check"
-	LinkProductIncomeCheck  LinkProduct = "income_check"
-	LinkProductPayment      LinkProduct = "payment"
+	// LinkProductIncomeCheck initiates an income verification flow.
+	LinkProductIncomeCheck LinkProduct = "income_check"
+	// LinkProductPayment initiates a payment via the Tink Pay product.
+	LinkProductPayment LinkProduct = "payment"
+	// LinkProductExpenseCheck initiates an expense analysis flow.
 	LinkProductExpenseCheck LinkProduct = "expense_check"
+	// LinkProductRiskInsights initiates a financial risk assessment flow.
 	LinkProductRiskInsights LinkProduct = "risk_insights"
 )
 
@@ -833,13 +858,18 @@ type ConnectivityOptions struct {
 type WebhookEventType string
 
 const (
-	// WebhookEventCredentialsUpdated fires when credentials are updated.
-	WebhookEventCredentialsUpdated          WebhookEventType = "credentials.updated"
+	// WebhookEventCredentialsUpdated fires when a user's bank credentials are modified.
+	WebhookEventCredentialsUpdated WebhookEventType = "credentials.updated"
+	// WebhookEventCredentialsRefreshSucceeded fires when a scheduled data refresh succeeds.
 	WebhookEventCredentialsRefreshSucceeded WebhookEventType = "credentials.refresh.succeeded"
-	WebhookEventCredentialsRefreshFailed    WebhookEventType = "credentials.refresh.failed"
-	WebhookEventProviderConsentsCreated     WebhookEventType = "provider_consents.created"
-	WebhookEventProviderConsentsRevoked     WebhookEventType = "provider_consents.revoked"
-	WebhookEventTest                        WebhookEventType = "test"
+	// WebhookEventCredentialsRefreshFailed fires when a scheduled data refresh fails.
+	WebhookEventCredentialsRefreshFailed WebhookEventType = "credentials.refresh.failed"
+	// WebhookEventProviderConsentsCreated fires when a new provider consent is established.
+	WebhookEventProviderConsentsCreated WebhookEventType = "provider_consents.created"
+	// WebhookEventProviderConsentsRevoked fires when a provider consent is revoked.
+	WebhookEventProviderConsentsRevoked WebhookEventType = "provider_consents.revoked"
+	// WebhookEventTest is sent when you trigger a test webhook from the Tink console.
+	WebhookEventTest WebhookEventType = "test"
 )
 
 // WebhookEvent is a parsed Tink webhook event.

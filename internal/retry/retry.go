@@ -1,4 +1,4 @@
-// Package retry implements exponential back-off with jitter for Go 1.24+.
+// Package retry implements exponential back-off with jitter for Go 1.25+.
 //
 // Usage:
 //
@@ -54,7 +54,7 @@ func Do(ctx context.Context, p Policy, fn func() error) error {
 	}
 
 	var lastErr error
-	for attempt := range p.MaxAttempts { // Go 1.22+ range-over-integer
+	for attempt := range p.MaxAttempts { // Go 1.25+ range-over-integer
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -78,7 +78,7 @@ func Do(ctx context.Context, p Policy, fn func() error) error {
 // CalculateDelay returns the back-off duration for attempt n (1-indexed).
 //
 // Formula: min(base × 2^(n−1), maxDelay) ± jitter.
-// Uses math/rand/v2 which is automatically seeded (Go 1.20+).
+// Uses math/rand/v2 which is automatically seeded (Go 1.25+).
 func CalculateDelay(attempt int, base, maxDelay time.Duration, jitterFactor float64) time.Duration {
 	exp := float64(base) * math.Pow(2, float64(attempt-1))
 	if maxDelay > 0 && time.Duration(exp) > maxDelay {
