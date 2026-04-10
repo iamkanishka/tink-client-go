@@ -1,7 +1,7 @@
 # tink-client-go Usage Guide
 
 A production-grade Go client for the [Tink Open Banking API](https://docs.tink.com/api).  
-Module: `github.com/iamkanishka/tink-client-go` · Requires Go ≥ 1.22 · Zero external dependencies.
+Module: `github.com/iamkanishka/tink-client-go` · Requires Go ≥ 1.25 · Zero external dependencies.
 
 ---
 
