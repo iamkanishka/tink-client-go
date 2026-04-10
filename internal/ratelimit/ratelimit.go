@@ -120,7 +120,7 @@ func (l *Limiter) Inspect(key string) Info {
 		return Info{Limit: l.limit, Remaining: l.limit}
 	}
 	b := l.getBucket(key)
-	rem := max(0, l.limit-b.count) // Go 1.21 builtin max
+	rem := max(0, l.limit-b.count) // Go 1.25.8 builtin max
 	resetsIn := max(0, int64(l.period-time.Since(b.windowStart)))
 	return Info{
 		ResetsIn:  time.Duration(resetsIn),
