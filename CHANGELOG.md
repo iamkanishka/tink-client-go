@@ -299,41 +299,24 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-
-**Go 1.24 language and library modernisation**
-- All `interface{}` occurrences replaced with the `any` type alias across all
-  34 `.go` files (source and tests). `interface{}` remains valid but `any` is
-  the idiomatic form since Go 1.18.
-- `internal/retry`: `Do` loop rewritten with **range-over-integer**
-  (`for attempt := range p.MaxAttempts`) introduced in Go 1.22.
-- `internal/ratelimit`: `Inspect` uses the **`max` builtin** (`max(0, ...)`)
-  introduced in Go 1.21 to replace manual `if rem < 0 { rem = 0 }` guards.
-- `internal/httpclient`: Added **`log/slog`** structured debug logging on
-  non-2xx responses (`slog.DebugContext`). Applications can control verbosity
-  with `slog.SetDefault` or provide a custom `slog.Handler`.
-- `internal/httpclient`: `ShouldRetry` callback now uses **`errors.As`** from
-  the standard library (`stderrors.As`) instead of a direct type assertion,
-  making the retry logic robust to wrapped errors.
-- `client/client_test.go` and `errors/errors_test.go`: All four remaining
-  old-style `err.(*T)` type assertions replaced with `errors.As(err, &te)`.
-
 **Struct field alignment (zero-change in behaviour)**
 
 Six additional structs in `types/types.go` were reordered so that fields with
 higher alignment requirements come first, eliminating implicit padding bytes:
 
-| Struct | Before | After | Saving |
-|---|---|---|---|
-| `Account` | `Flags []string` last | pointer fields first, slice second | 8 B |
-| `BudgetsResponse` | `[]Budget` → `string` | `string` → `[]Budget` | 8 B |
-| `CalendarEventsResponse` | `[]CalendarEvent` → `string` | `string` → `[]CalendarEvent` | 8 B |
-| `AccountCheckReportsResponse` | `[]AccountCheckReport` → `string` | `string` → `[]AccountCheckReport` | 8 B |
-| `ConnectorTransactionAccount` | `[]ConnectorTransaction` → `string` → `float64` | `string` → `[]ConnectorTransaction` → `float64` | 8 B |
-| `IngestTransactionsParams` | `[]ConnectorTransactionAccount` → `IngestType` | `IngestType` → `[]ConnectorTransactionAccount` | 8 B |
+| Struct                        | Before                                          | After                                           | Saving |
+| ----------------------------- | ----------------------------------------------- | ----------------------------------------------- | ------ |
+| `Account`                     | `Flags []string` last                           | pointer fields first, slice second              | 8 B    |
+| `BudgetsResponse`             | `[]Budget` → `string`                           | `string` → `[]Budget`                           | 8 B    |
+| `CalendarEventsResponse`      | `[]CalendarEvent` → `string`                    | `string` → `[]CalendarEvent`                    | 8 B    |
+| `AccountCheckReportsResponse` | `[]AccountCheckReport` → `string`               | `string` → `[]AccountCheckReport`               | 8 B    |
+| `ConnectorTransactionAccount` | `[]ConnectorTransaction` → `string` → `float64` | `string` → `[]ConnectorTransaction` → `float64` | 8 B    |
+| `IngestTransactionsParams`    | `[]ConnectorTransactionAccount` → `IngestType`  | `IngestType` → `[]ConnectorTransactionAccount`  | 8 B    |
 
 JSON serialisation is unaffected because all literals use named fields.
 
 **Code quality**
+
 - `internal/cache/lru.go`: Removed alignment-comment padding (trailing spaces
   after field names) that caused `gofmt` to flag the file as unformatted.
 - `internal/retry/retry.go`: `nolint:gosec` directive now includes an inline
@@ -342,4 +325,23 @@ JSON serialisation is unaffected because all literals use named fields.
 - `transactions/transactions.go`: Removed hand-aligned spaces in `url.Values`
   map literals that `gofmt` does not preserve.
 
+## [1.0.2] — 2026-04-10
+
+### Fixed
+
+**Code quality and linting**
+
+- Resolved minor `golangci-lint` issues across the codebase.
+- Adjusted struct field ordering to satisfy `govet` alignment checks.
+- Removed unnecessary whitespace and formatting inconsistencies flagged by `gofmt`.
+- Minor refactoring to improve static analysis results from `staticcheck` and `gocritic`.
+
+### Changed
+
+- Internal code cleanups and formatting improvements with no behavioural changes.
+
+
 [1.0.1]: https://github.com/iamkanishka/tink-client-go/compare/v1.0.0...v1.0.1
+[1.0.2]: https://github.com/iamkanishka/tink-client-go/compare/v1.0.1...v1.0.2
+
+
