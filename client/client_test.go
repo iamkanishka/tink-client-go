@@ -103,35 +103,34 @@ func TestNew_AllNamespacesPresent(t *testing.T) {
 	c := newTestClient(t, srv)
 
 	// Verify all 24 service namespaces are non-nil
-	//nolint:govet // fieldalignment not relevant for small test struct; readability preferred
 	checks := []struct {
-		name string
 		val  any
+		name string
 	}{
-		{"Auth", c.Auth},
-		{"Accounts", c.Accounts},
-		{"Transactions", c.Transactions},
-		{"TransactionsOneTimeAccess", c.TransactionsOneTimeAccess},
-		{"TransactionsContinuousAccess", c.TransactionsContinuousAccess},
-		{"Providers", c.Providers},
-		{"Categories", c.Categories},
-		{"Statistics", c.Statistics},
-		{"Users", c.Users},
-		{"Investments", c.Investments},
-		{"Loans", c.Loans},
-		{"Budgets", c.Budgets},
-		{"CashFlow", c.CashFlow},
-		{"FinancialCalendar", c.FinancialCalendar},
-		{"AccountCheck", c.AccountCheck},
-		{"BalanceCheck", c.BalanceCheck},
-		{"BusinessAccountCheck", c.BusinessAccountCheck},
-		{"IncomeCheck", c.IncomeCheck},
-		{"ExpenseCheck", c.ExpenseCheck},
-		{"RiskInsights", c.RiskInsights},
-		{"RiskCategorisation", c.RiskCategorisation},
-		{"Connector", c.Connector},
-		{"Link", c.Link},
-		{"Connectivity", c.Connectivity},
+		{c.Auth, "Auth"},
+		{c.Accounts, "Accounts"},
+		{c.Transactions, "Transactions"},
+		{c.TransactionsOneTimeAccess, "TransactionsOneTimeAccess"},
+		{c.TransactionsContinuousAccess, "TransactionsContinuousAccess"},
+		{c.Providers, "Providers"},
+		{c.Categories, "Categories"},
+		{c.Statistics, "Statistics"},
+		{c.Users, "Users"},
+		{c.Investments, "Investments"},
+		{c.Loans, "Loans"},
+		{c.Budgets, "Budgets"},
+		{c.CashFlow, "CashFlow"},
+		{c.FinancialCalendar, "FinancialCalendar"},
+		{c.AccountCheck, "AccountCheck"},
+		{c.BalanceCheck, "BalanceCheck"},
+		{c.BusinessAccountCheck, "BusinessAccountCheck"},
+		{c.IncomeCheck, "IncomeCheck"},
+		{c.ExpenseCheck, "ExpenseCheck"},
+		{c.RiskInsights, "RiskInsights"},
+		{c.RiskCategorisation, "RiskCategorisation"},
+		{c.Connector, "Connector"},
+		{c.Link, "Link"},
+		{c.Connectivity, "Connectivity"},
 	}
 	for _, tc := range checks {
 		if tc.val == nil {
