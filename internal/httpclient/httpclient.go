@@ -322,7 +322,12 @@ func (c *HTTPClient) execRaw(ctx context.Context, method, path string, body any,
 	if err != nil {
 		return nil, errors.FromNetworkError(err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		// Drain remaining bytes so the underlying TCP connection can be reused,
+		// then close. Discard any drain/close error — the read result takes priority.
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -355,7 +360,10 @@ func (c *HTTPClient) execForm(ctx context.Context, path string, form url.Values,
 	if err != nil {
 		return errors.FromNetworkError(err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
