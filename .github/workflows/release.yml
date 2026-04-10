@@ -38,7 +38,7 @@ permissions:
   id-token: write   # needed for OIDC (future: pkg.go.dev OIDC attestation)
 
 env:
-  GO_VERSION: "1.24"
+  GO_VERSION: "1.25.8"
   MODULE_PATH: "github.com/iamkanishka/tink-client-go"
 
 # ── Jobs ──────────────────────────────────────────────────────────────────────
@@ -51,7 +51,7 @@ jobs:
   #   strategy:
   #     fail-fast: false
   #     matrix:
-  #       go: ["1.23", "1.24"]                      # test on current + latest
+  #       go: ["1.25.6", "1.25.8"]                      # test on current + latest
   #       os: [ubuntu-latest, macos-latest]          # test on Linux and macOS
 
   #   steps:
@@ -86,9 +86,9 @@ jobs:
   #     - name: Test (with race detector)
   #       run: go test -race -count=1 -timeout=2m ./...
 
-  #     # Generate a coverage report on Linux/Go 1.24 only (avoid duplicate uploads)
+  #     # Generate a coverage report on Linux/Go 1.25.8 only (avoid duplicate uploads)
   #     - name: Test (with coverage)
-  #       if: matrix.os == 'ubuntu-latest' && matrix.go == '1.24'
+  #       if: matrix.os == 'ubuntu-latest' && matrix.go == '1.25.8'
   #       run: |
   #         go test -race -count=1 -timeout=2m \
   #           -coverprofile=coverage.out \
@@ -97,7 +97,7 @@ jobs:
   #         go tool cover -func=coverage.out | tail -1
 
   #     - name: Upload coverage report
-  #       if: matrix.os == 'ubuntu-latest' && matrix.go == '1.24'
+  #       if: matrix.os == 'ubuntu-latest' && matrix.go == '1.25.8'
   #       uses: actions/upload-artifact@v4
   #       with:
   #         name: coverage-report
