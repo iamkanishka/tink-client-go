@@ -209,7 +209,7 @@ jobs:
 
       # Create the GitHub Release. The tag already exists (pushed by the developer).
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: "${{ env.VERSION }}"
           body_path: release-notes.md
